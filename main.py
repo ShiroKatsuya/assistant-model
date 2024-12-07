@@ -1,38 +1,71 @@
-import ollama
-from recording import process_audio, pause_audio_processing, resume_audio_processing
-import recording
+import os
+import asyncio
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
+import aiofiles
 from voice import voice
-import time
+from recording import generate_transcription
+import ollama
+from pydub import AudioSegment
 
-def main():
+app = FastAPI()
+
+@app.post("/process-audio/")
+async def process_audio_endpoint(file: UploadFile = File(...)):
+    """
+    Endpoint untuk mengunggah file audio dan mendapatkan transkripsi serta respons.
+    """
     try:
-        for transcription in process_audio():
-            try:
-                # Pause audio processing
-                pause_audio_processing()
-                
-                response = ollama.generate(
-                    model='rina-chan',
-                    prompt=transcription,
-                    language='id',
-                )
-                print(f"Rina: {response.response}")
-                voice(response.response)  # Memanggil fungsi voice dengan respons
-            except TypeError as e:
-                print(f"Error selama ollama.generate: {e}")
-            except Exception as e:
-                print(f"Error tak terduga selama pemrosesan: {e}")
-            finally:
-                # Tambahkan penundaan singkat sebelum melanjutkan
-                # time.sleep(1)  # Tunda selama 1 detik
-                resume_audio_processing()
-    except KeyboardInterrupt:
-        print("\nMenghentikan program...")
-        # Beri tahu antrian untuk berhenti, tanpa sys.exit()
-        for _ in range(len(recording.audio_queue.queue)):
-            recording.audio_queue.put(None)
-    except Exception as e:
-        print(f"Error tak terduga di loop utama: {e}")
+        # Simpan file audio yang diunggah secara asinkron
+        file_location = f"temp/{file.filename}"
+        os.makedirs(os.path.dirname(file_location), exist_ok=True)
+        async with aiofiles.open(file_location, "wb") as buffer:
+            content = await file.read()
+            await buffer.write(content)
 
-if __name__ == "__main__":
-    main()
+        # Konversi audio ke PCM WAV jika diperlukan
+        pcm_wav_path = f"temp/converted_{file.filename}"
+        audio = AudioSegment.from_file(file_location)
+        audio = audio.set_channels(1)  # Mono
+        audio = audio.set_frame_rate(16000)  # 16kHz
+        audio.export(pcm_wav_path, format="wav")
+
+        # Proses transkripsi
+        transcription = generate_transcription(pcm_wav_path)
+        if not transcription:
+            raise HTTPException(status_code=400, detail="Transkripsi gagal.")
+
+        # Dapatkan respons dari Ollama
+        response = ollama.generate(
+            model='rina-chan',
+            prompt=transcription,
+            language='id',
+        )
+        response_text = response.response
+
+        # Ubah respons menjadi suara
+        voice(response_text)
+
+        return {
+            "transcription": transcription,
+            "response": response_text
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Hapus file temporer
+        for path in [file_location, pcm_wav_path]:
+            if os.path.exists(path):
+                os.remove(path)
+
+@app.get("/get-audio/{filename}")
+def get_audio(filename: str):
+    """
+    Endpoint untuk mengambil file audio yang dihasilkan.
+    """
+    file_path = f"output/{filename}.mp3"
+    if os.path.exists(file_path):
+        return FileResponse(path=file_path, media_type="audio/mpeg", filename=filename + ".mp3")
+    else:
+        raise HTTPException(status_code=404, detail="File audio tidak ditemukan.")

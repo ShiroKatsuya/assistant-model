@@ -3,7 +3,7 @@ import asyncio
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 import aiofiles
-from voice import voice
+from voice import voice, get_filename_from_audio_file
 from recording import generate_transcription
 import ollama
 from pydub import AudioSegment
@@ -25,6 +25,7 @@ async def process_audio_endpoint(file: UploadFile = File(...)):
 
         # Konversi audio ke PCM WAV jika diperlukan
         pcm_wav_path = f"temp/converted_{file.filename}"
+        print(pcm_wav_path)
         audio = AudioSegment.from_file(file_location)
         audio = audio.set_channels(1)  # Mono
         audio = audio.set_frame_rate(16000)  # 16kHz
@@ -45,10 +46,12 @@ async def process_audio_endpoint(file: UploadFile = File(...)):
 
         # Ubah respons menjadi suara
         voice(response_text)
+        filename = get_filename_from_audio_file()
 
         return {
             "transcription": transcription,
-            "response": response_text
+            "response": response_text,
+            "filename": filename
         }
 
     except Exception as e:

@@ -39,3 +39,13 @@ def voice(teks, filename="response"):
         return
 
     print(f"Audio disimpan di {audio_file}")
+
+
+def get_filename_from_audio_file():
+    return "response"
+
+    
+#     return get_filename(audio_file)
+
+# def get_filename(audio_file):
+#     return os.path.basename(audio_file)

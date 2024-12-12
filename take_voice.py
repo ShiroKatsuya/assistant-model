@@ -41,7 +41,7 @@ def play_audio(file_path):
 
 # Teks yang akan diubah menjadi suara dan ditampilkan sebagai subtitle
 text = (
-    "The end of everything in the universe is a concept that has fascinated scientists and philosophers for centuries. "
+    "hello  i am a human i will be your friend"
    
 )
 

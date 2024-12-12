@@ -3,6 +3,7 @@ from recording import process_audio, pause_audio_processing, resume_audio_proces
 import recording
 from voice import voice
 import time
+from model import embed_app
 
 
 def main():
@@ -17,6 +18,7 @@ def main():
                     prompt=transcription,
                     # language='id',
                 )
+                embed_app()
                 print(f"Rina: {response.response}")
                 voice(response.response)  # Memanggil fungsi voice dengan respons
             except TypeError as e:

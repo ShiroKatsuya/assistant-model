@@ -71,7 +71,7 @@ def show_subtitle_from_audio(file_path, chunk_length_ms=5000):
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     window_width = 800
-    window_height = 80
+    window_height = 100
     x_pos = 100  # Set x_pos to 0 to position the window on the left side of the screen
     y_pos = 700
 

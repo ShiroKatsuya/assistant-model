@@ -7,6 +7,9 @@ from model import embed_app
 
 
 def main():
+    # Run embed_app() once before the main loop
+    embed_app()
+    
     try:
         for transcription in process_audio():
             try:
@@ -18,7 +21,6 @@ def main():
                     prompt=transcription,
                     # language='id',
                 )
-                embed_app()
                 print(f"Rina: {response.response}")
                 voice(response.response)  # Memanggil fungsi voice dengan respons
             except TypeError as e:

@@ -20,7 +20,7 @@ def embed_app():
 
     def run_app():
         root = tk.Tk()
-        root.title("VTube Studio Integration")
+        root.title("Main Windows Application")
         root.geometry("1080x1920+850+1")
         root.minsize(1080, 1920)  # Optional: Set a minimum window size
         root.overrideredirect(True)

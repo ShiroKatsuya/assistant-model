@@ -3,26 +3,27 @@ from recording import process_audio, pause_audio_processing, resume_audio_proces
 import recording
 from voice import voice
 import time
-from model import embed_app
+# from model import embed_app
 
 
 def main():
     # Run embed_app() once before the main loop
-    embed_app()
+    # embed_app()
     
     try:
-        for transcription in process_audio():
+        for translate in process_audio():
             try:
                 # Pause audio processing
                 pause_audio_processing()
                 
                 response = ollama.generate(
                     model='rina-chan',
-                    prompt=transcription,
+                    prompt=translate,
                     # language='id',
                 )
                 print(f"Rina: {response.response}")
-                voice(response.response)  # Memanggil fungsi voice dengan respons
+                cleaned_response = response.response.replace('*', '')  # Remove asterisks from the response
+                voice(cleaned_response)  # Call the voice function with the cleaned response
             except TypeError as e:
                 print(f"Error selama ollama.generate: {e}")
             except Exception as e:

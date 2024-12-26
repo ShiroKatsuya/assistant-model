@@ -16,7 +16,7 @@ import numpy as np
 
 # translator = googletrans.Translator()
 
-
+from deep_translator import GoogleTranslator
 
 r = sr.Recognizer()
 
@@ -126,11 +126,13 @@ def process_audio():
                 audio = r.record(source)
                 try:
                     transcription = r.recognize_google(audio, language='id-ID')
+                    
+                    translate = GoogleTranslator(source='auto', target='en').translate(transcription)
  
           
-                    print(f"Transkripsi: {transcription}")
+                    print(f"Transkripsi: {translate}")
                 
-                    yield transcription
+                    yield translate
                 except sr.UnknownValueError:
                     print("Google Speech Recognition tidak dapat memahami audio.")
                     resume_audio_processing()  # Call resume_audio_processing here

@@ -48,6 +48,7 @@ def pause_audio_processing():
 def resume_audio_processing():
     """Melanjutkan pemrosesan audio."""
     resume_event.set()
+    
     print("Pemrosesan audio dilanjutkan.")
 
 def clear_audio_queue():
@@ -66,6 +67,7 @@ def detect_sound(data):
     """Deteksi apakah ada suara dalam data audio."""
     audio_data = np.frombuffer(data, dtype=np.int16)
     return np.max(np.abs(audio_data)) > 1000  # Threshold untuk mendeteksi suara
+
 
 def record_audio():
     print("Menunggu suara untuk memulai perekaman...")
@@ -150,3 +152,4 @@ record_thread.start()
 # Inisialisasi thread untuk memproses audio
 process_thread = threading.Thread(target=process_audio, daemon=True)
 process_thread.start()
+

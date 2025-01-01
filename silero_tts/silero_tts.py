@@ -11,7 +11,7 @@ from number2text.number2text import NumberToText
 from transliterate import reverse_transliterate, transliterate
 from lang_data import is_cyrillic, is_latin, lang_data
 class SileroTTS:
-    def __init__(self, model_id: str, language: str, speaker: str = None, sample_rate: int = 48000, device: str = 'cpu',
+    def __init__(self, model_id: str, language: str, speaker: str = None, sample_rate: int = 48000, device: str = 'cuda',
                  put_accent=True, put_yo=True, num_threads=6):
         self.model_id = model_id
         self.language = language
@@ -149,7 +149,7 @@ class SileroTTS:
         t0 = timeit.default_timer()
 
         if not torch.cuda.is_available() and self.device == "auto":
-            self.device = 'cpu'
+            self.device = 'cuda'
         if torch.cuda.is_available() and (self.device == "auto" or self.device == "cuda"):
             torch_dev = torch.device("cuda", 0)
             gpus_count = torch.cuda.device_count()
@@ -389,7 +389,7 @@ if __name__== '__main__':
                     language='ru',
                     speaker='aidar',
                     sample_rate=48000,
-                    device='cpu')
+                    device='cuda')
 
     # Speech generation from text
     # text = "Проверка Silero"

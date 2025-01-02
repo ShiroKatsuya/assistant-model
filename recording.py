@@ -4,13 +4,9 @@ import threading
 import queue
 import speech_recognition as sr
 import numpy as np
-
-
-
-
-
-
-
+import simpleaudio as sa
+import webrtcvad
+import subprocess
 
 # Buat objek pengenalan suara
 
@@ -35,9 +31,8 @@ fs = 44100  # Record at 44100 samples per second
 seconds = 10
 filename = "output.wav"
 
-
-
-
+# Event untuk mengontrol pemutaran audio
+audio_playing = threading.Event()
 
 def pause_audio_processing():
     """Menghentikan sementara pemrosesan audio dan mengosongkan antrian."""
@@ -48,7 +43,6 @@ def pause_audio_processing():
 def resume_audio_processing():
     """Melanjutkan pemrosesan audio."""
     resume_event.set()
-    
     print("Pemrosesan audio dilanjutkan.")
 
 def clear_audio_queue():
@@ -66,8 +60,23 @@ def clear_audio_queue():
 def detect_sound(data):
     """Deteksi apakah ada suara dalam data audio."""
     audio_data = np.frombuffer(data, dtype=np.int16)
-    return np.max(np.abs(audio_data)) > 1000  # Threshold untuk mendeteksi suara
+    return np.max(np.abs(audio_data)) > 4000  # Threshold untuk mendeteksi suara
 
+def play_audio(audio_file):
+    """Putar audio dalam thread terpisah."""
+    if not audio_playing.is_set():  # Hanya putar jika tidak ada audio lain yang sedang diputar
+        audio_playing.set()  # Set flag bahwa audio sedang diputar
+        try:
+            subprocess.run(
+                ["ffplay", "-nodisp", "-autoexit", "-sync", "ext", audio_file],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        except Exception as e:
+            print(f"Error saat memutar audio: {e}")
+        finally:
+            audio_playing.clear()  # Clear flag setelah selesai memutar
 
 def record_audio():
     print("Menunggu suara untuk memulai perekaman...")
@@ -89,6 +98,8 @@ def record_audio():
 
             if detect_sound(data):
                 print("Suara terdeteksi, mulai merekam...")
+                play_thread = threading.Thread(target=play_audio, args=('recording.wav',))
+                play_thread.start()
                 frames.append(data)
 
                 # Rekam selama 10 detik setelah suara terdeteksi
@@ -128,16 +139,14 @@ def process_audio():
                 audio = r.record(source)
                 try:
                     transcription = r.recognize_google(audio, language='id-ID')
-                    
                     translate = GoogleTranslator(source='auto', target='en').translate(transcription)
- 
-          
                     print(f"Transkripsi: {translate}")
-                
                     yield translate
                 except sr.UnknownValueError:
+                    play_thread = threading.Thread(target=play_audio, args=('not_understood.wav',))
+                    play_thread.start()
                     print("Google Speech Recognition tidak dapat memahami audio.")
-                    resume_audio_processing()  # Call resume_audio_processing here
+                    resume_audio_processing()
                 except sr.RequestError as e:
                     print(f"Permintaan ke Google Speech Recognition gagal; {e}")
         except Exception as e:
@@ -152,4 +161,3 @@ record_thread.start()
 # Inisialisasi thread untuk memproses audio
 process_thread = threading.Thread(target=process_audio, daemon=True)
 process_thread.start()
-

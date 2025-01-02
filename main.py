@@ -6,8 +6,11 @@ import time
 import requests
 from PIL import Image
 import io
+# from intro import audio_thread_intro
 # from model import embed_app
 from main_ui import embed_app
+from image_audio import audio_thread_intro_image
+from intro import audio_thread_intro
 
 import os
 import google.generativeai as genai
@@ -22,14 +25,19 @@ def main():
     # Run embed_app() once before the main loop
     # embed_app()
     embed_app()
-    
+    audio_thread_intro.start()
+    audio_thread_intro.join()
+
     try:
         for translate in process_audio():
             if any(keyword in translate.lower() for keyword in ["create image", "create images", "buatkan saya gambar", "gambar", "image", "buatkan gambar","picture","pictures","buatkan gambar","photo","photos","buatkan gambar","Draw","draw","Make"]):
-                
+         
                 pause_audio_processing()
                 image = None
+
                 try:
+                    audio_thread_intro_image.start()
+                    audio_thread_intro_image.join()
                     response = monster_client.generate(model='txt2img', data={
                         "prompt": translate})
                     print(response)
@@ -41,7 +49,7 @@ def main():
           
                     sentiment = image
                     model = genai.GenerativeModel('gemini-1.5-flash')
-
+     
                     response = model.generate_content(["describe the image in detail", sentiment])
                     cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
                     print(cleaned_response)

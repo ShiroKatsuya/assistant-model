@@ -10,6 +10,7 @@ import torch
 from functools import lru_cache
 from recording import process_audio, pause_audio_processing, resume_audio_processing,record_audio,process_audio
 import threading
+from voice_internet_access import process_internet_access
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 client = genai.GenerativeModel('gemini-1.5-flash')
@@ -18,6 +19,9 @@ os.environ["USER_AGENT"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKi
 
 @lru_cache(maxsize=100)
 def ddg_search(query):
+    audio_thread = threading.Thread(target=process_internet_access)
+    audio_thread.start()
+    audio_thread.join()
     """Cache search results for identical queries"""
     results = DDGS().text(query, max_results=3)
     urls = [result['href'] for result in results]
@@ -70,10 +74,11 @@ def main():
     else:
         print("CUDA is not available. Proceeding with CPU.")
     audio_processor = process_audio()
+    resume_audio_processing()
     try:
         while True:
             try:
-                resume_audio_processing()
+         
                 translate = next(audio_processor)
                 if translate:
                     pause_audio_processing()
@@ -83,7 +88,7 @@ def main():
                     response = create_completion_gemini(prompt)
                     return response  
             except StopIteration:
-                resume_audio_processing()
+                # resume_audio_processing()
                 continue
     except KeyboardInterrupt:
         print("\nOperation cancelled by user")

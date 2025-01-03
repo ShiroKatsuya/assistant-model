@@ -7,6 +7,7 @@ import numpy as np
 import simpleaudio as sa
 import webrtcvad
 import subprocess
+from intro import audio_thread_intro, audio_started_intro
 
 # Buat objek pengenalan suara
 
@@ -22,6 +23,9 @@ audio_queue = queue.Queue()
 # Event untuk mengontrol pause dan resume
 resume_event = threading.Event()
 resume_event.set()  # Mulai dalam keadaan berjalan
+
+# Event untuk mengontrol intro selesai
+intro_finished = threading.Event()
 
 chunk = 1024  # Record in chunks of 1024 samples
 sample_format = pyaudio.paInt16  # 16 bits per sample
@@ -78,7 +82,20 @@ def play_audio(audio_file):
         finally:
             audio_playing.clear()  # Clear flag setelah selesai memutar
 
+def wait_for_intro():
+    """Tunggu hingga intro selesai diputar."""
+    if not audio_started_intro.is_set():
+        print("Menunggu audio intro dimulai...")
+        audio_started_intro.wait()
+    print("Menunggu audio intro selesai...")
+    audio_thread_intro.join()
+    intro_finished.set()
+    print("Audio intro selesai diputar")
+
 def record_audio():
+    # Tunggu hingga audio intro selesai diputar
+    wait_for_intro()
+        
     print("Menunggu suara untuk memulai perekaman...")
     """Fungsi untuk merekam audio dan memasukkannya ke dalam antrian."""
     p = pyaudio.PyAudio()  # Create an interface to PortAudio

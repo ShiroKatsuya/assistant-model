@@ -16,12 +16,12 @@ def generate_voice(text):
         num_threads=8
     )
 
-    tts.tts(text, 'image_audio.wav')
-    print("Suara berhasil dihasilkan dan disimpan sebagai 'image_audio.wav'")
+    tts.tts(text, 'process_audio_internet_access.wav')
+    print("Suara berhasil dihasilkan dan disimpan sebagai 'process_audio_internet_access.wav'")
 
 if __name__ == "__main__":
     text = (
-        "The process of image creation and sentiment analysis is in progress. Please wait for a while."
+        "The query search process is in progress. Get ready to enter the webpage and summarize the content."
         
         
     )

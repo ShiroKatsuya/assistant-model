@@ -20,9 +20,14 @@ from main_ui import embed_app
 os.environ['MONSTER_API_KEY']
 monster_client = client()
 
-# Tambahkan Event untuk Mengontrol Thread Deteksi Objek
+
 detection_stop_event = threading.Event()
 detection_thread = None
+detection_lock = threading.Lock()  # Add lock for thread safety
+
+
+
+            
 
 def main():
     global detection_thread
@@ -83,33 +88,39 @@ def main():
                     voice("Sorry, something went wrong while accessing the internet")
                 finally:
                     resume_audio_processing()
+            elif any(keyword in translate.lower() for keyword in ["stop camera","hentikan kamera","stop kamera","stop camera"]):
+                try:
+                    with detection_lock:
+                        if detection_thread and detection_thread.is_alive():
+                            print("Menghentikan deteksi objek...")
+                            voice("Menghentikan deteksi objek.")
+                            detection_stop_event.set()
+                            detection_thread.join()
+                            detection_thread = None  # Clear the thread reference
+                            print("Deteksi objek dihentikan.")
+                        else:
+                            print("Kamera tidak berjalan.")
+                            voice("Kamera tidak berjalan.")
+                except Exception as e:
+                    print(f"Error saat menghentikan kamera: {e}")
+                finally:
+                    resume_audio_processing()
             elif any(keyword in translate.lower() for keyword in ["open camera","buka kamera","kamera","camera"]):
                 try:
-                    if detection_thread and detection_thread.is_alive():
-                        print("Kamera sudah berjalan.")
-                        voice("Kamera sudah berjalan.")
-                    else:
-                        print("Memulai deteksi objek...")
-                        voice("Memulai deteksi objek.")
-                        detection_stop_event.clear()
-                        detection_thread = threading.Thread(target=objek_deteksi, args=(detection_stop_event,))
-                        detection_thread.start()
+                    with detection_lock:
+                        if detection_thread and detection_thread.is_alive():
+                            print("Kamera sudah berjalan.")
+                            # voice("Kamera sudah berjalan.")
+                        else:
+                            print("Memulai deteksi objek...")
+                            voice("Memulai deteksi objek.")
+                            detection_stop_event.clear()
+                            detection_thread = threading.Thread(target=objek_deteksi, args=(detection_stop_event,))
+                            detection_thread.daemon = True  # Make thread daemon so it exits when main thread exits
+                            detection_thread.start()
                 except Exception as e:
                     print(f"Unexpected error during object detection: {str(e)}")
                     voice("Sorry, something went wrong during object detection")
-            elif any(keyword in translate.lower() for keyword in ["stop camera","hentikan kamera","stop kamera","stop camera"]):
-                try:
-                    if detection_thread and detection_thread.is_alive():
-                        print("Menghentikan deteksi objek...")
-                        voice("Menghentikan deteksi objek.")
-                        detection_stop_event.set()
-                        detection_thread.join(timeout=2)
-                        print("Deteksi objek dihentikan.")
-                    else:
-                        print("Kamera tidak berjalan.")
-                        voice("Kamera tidak berjalan.")
-                except Exception as e:
-                    print(f"Error saat menghentikan kamera: {e}")
             else:
                 try:
              
@@ -135,10 +146,10 @@ def main():
     except Exception as e:
         print(f"Error tak terduga di loop utama: {e}")
     finally:
-
-        if detection_thread and detection_thread.is_alive():
-            detection_stop_event.set()
-            detection_thread.join(timeout=2)
+        with detection_lock:
+            if detection_thread and detection_thread.is_alive():
+                detection_stop_event.set()
+                detection_thread.join()
 
 if __name__ == "__main__":
     main()

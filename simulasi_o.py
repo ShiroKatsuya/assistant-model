@@ -1,14 +1,6 @@
 import torch
 import cv2
-import numpy as np
 import supervision as sv
-from recording import (
-    resume_audio_processing, 
-    pause_audio_processing, 
-    record_audio, 
-    process_audio,
-    audio_queue
-)
 import threading
 from transformers import (
     AutoImageProcessor, 
@@ -26,26 +18,13 @@ def objek_deteksi(stop_event):
     model = AutoModelForObjectDetection.from_pretrained(CHECKPOINT).to(DEVICE)
     processor = AutoImageProcessor.from_pretrained(CHECKPOINT)
 
-    # Start audio recording thread if not already running
-    record_thread = threading.Thread(target=record_audio, daemon=True)
-    record_thread.start()
-    
-    # Start audio processing thread if not already running
-    process_thread = threading.Thread(target=process_audio, daemon=True)
-    process_thread.start()
-
     cap = cv2.VideoCapture(0)
-    if cap.isOpened():
-        print("Camera opened successfully")
-        resume_audio_processing()
-    else:
-        print("Failed to open camera")
-        return
 
     try:
         while not stop_event.is_set():
             ret, frame = cap.read()
             if not ret:
+                print("Failed to read frame from camera.")
                 break
 
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -72,13 +51,39 @@ def objek_deteksi(stop_event):
             cv2.imshow('Object Detection', annotated_frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
+                print("Quit signal received. Stopping camera.")
                 break
+    except Exception as e:
+        print(f"An error occurred during object detection: {e}")
     finally:
         cap.release()
         cv2.destroyAllWindows()
-        
-        # Don't stop the audio threads, just pause processing
-        pause_audio_processing()
+        print("Camera has been released and windows closed.")
+
+def listen_for_commands(stop_event):
+    """Listen for the 'stop camera' command to stop the camera."""
+    while True:
+        command = input("Enter command: ").strip().lower()
+        if command == "stop camera":
+            print("Stop camera command received.")
+            stop_event.set()
+            break
+        else:
+            print(f"Unknown command: {command}. Type 'stop camera' to stop the camera.")
 
 if __name__ == "__main__":
-    objek_deteksi()
+    stop_event = threading.Event()
+
+    camera_thread = threading.Thread(target=objek_deteksi, args=(stop_event,))
+    camera_thread.start()
+
+    command_thread = threading.Thread(target=listen_for_commands, args=(stop_event,))
+    command_thread.start()
+
+    # Wait for the camera thread to finish
+    camera_thread.join()
+    # Optionally, wait for the command thread to finish
+    command_thread.join()
+
+    print("Camera has been stopped. Program continues running.")
+    # You can add additional code here to keep the program running or perform other tasks

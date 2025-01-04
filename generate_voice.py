@@ -16,12 +16,12 @@ def generate_voice(text):
         num_threads=8
     )
 
-    tts.tts(text, 'process_audio_internet_access.wav')
-    print("Suara berhasil dihasilkan dan disimpan sebagai 'process_audio_internet_access.wav'")
+    tts.tts(text, 'countdown.wav')
+    print("Suara berhasil dihasilkan dan disimpan sebagai 'countdown.wav'")
 
 if __name__ == "__main__":
     text = (
-        "The query search process is in progress. Get ready to enter the webpage and summarize the content."
+        "Hello, I'm a voice assistant. How can I help you today?"
         
         
     )

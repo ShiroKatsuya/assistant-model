@@ -21,13 +21,13 @@ def embed_app():
         _app_running = True
 
     def run_app():
-        # Kill any existing ffplay processes
+        # # Kill any existing ffplay processes
         # if sys.platform == "win32":
         #     subprocess.run(['taskkill', '/F', '/IM', 'ffplay.exe'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         # else:
         #     subprocess.run(['killall', 'ffplay'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # Clear any existing audio files
+        # # Clear any existing audio files
         # if os.path.exists("output_ai.wav"):
         #     os.remove("output_ai.wav")
             

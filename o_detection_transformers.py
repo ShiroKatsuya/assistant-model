@@ -15,6 +15,8 @@ from transformers import (
     AutoModelForObjectDetection
 )
 
+
+
 def objek_deteksi(stop_event):
     CHECKPOINT = "PekingU/rtdetr_r50vd_coco_o365"
     DEVICE = torch.device("cuda") 

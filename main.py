@@ -6,7 +6,7 @@ import time
 import requests
 from PIL import Image
 import io
-from image_audio import audio_thread_intro_image
+from image_audio import audio_thread_intro_image, play_audio, audio_file
 from intro import audio_thread_intro
 from voice_internet_access import audio_thread_intro_internet_access
 import os
@@ -42,12 +42,20 @@ def main():
                 image = None
 
                 try:
-                    audio_thread_intro_image.start()
-                    audio_thread_intro_image.join()
+
+                    image_intro_thread = threading.Thread(target=play_audio, args=(audio_file,))
+                    image_intro_thread.start()
+                    image_intro_thread.join()
+                    
                     response = monster_client.generate(model='txt2img', data={
-                        "prompt": translate})
+                        "prompt": f"Create a realistic and contextually accurate visualization of: {translate} in the context",
+                        "negative_prompt": "cartoon, abstract, unrealistic, distorted", 
+                        "samples": 1,
+                        "steps": 30,  
+                        "guidance_scale": 7.5  
+                        })
                     print(response)
-                    image_url = response['output'][0]  # Get first URL from output list
+                    image_url = response['output'][0]  
                     image_bytes = requests.get(image_url).content
                     image = Image.open(io.BytesIO(image_bytes))
                     image.resize((1920, 1080 + 850+1))
@@ -140,7 +148,7 @@ def main():
                     resume_audio_processing()
     except KeyboardInterrupt:
         print("\nMenghentikan program...")
-        # Clear the audio queue tanpa sys.exit()
+
         for _ in range(len(recording.audio_queue.queue)):
             recording.audio_queue.put(None)
     except Exception as e:

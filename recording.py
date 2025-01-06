@@ -32,7 +32,7 @@ sample_format = pyaudio.paInt16  # 16 bits per sample
 channels = 1
 print(channels)
 fs = 44100  # Record at 44100 samples per second
-seconds = 10
+seconds = 5
 filename = "output.wav"
 
 # Event untuk mengontrol pemutaran audio
@@ -119,11 +119,28 @@ def record_audio():
                 play_thread.start()
                 frames.append(data)
 
-                # Rekam selama 10 detik setelah suara terdeteksi
-                for _ in range(int(fs / chunk * seconds) - 1):
+                chunks_recorded = 0
+                silence_chunks = 0
+                min_chunks = int(fs / chunk * seconds)  # Jumlah chunk untuk 10 detik
+
+
+
+                while True:
                     data = stream.read(chunk)
                     frames.append(data)
+                    chunks_recorded += 1
 
+                    # Setelah 10 detik, mulai cek keheningan
+                    if chunks_recorded >= min_chunks:
+                        if detect_sound(data):
+                            silence_chunks = 0  # Reset penghitung keheningan jika ada suara
+                        else:
+                            silence_chunks += 1
+                            
+                        # Hentikan jika hening selama 1 detik (fs/chunk chunks)
+                        if silence_chunks >= int(fs / chunk):
+                            break
+                    
                 audio_queue.put(b''.join(frames))
                 frames = []
                 print("Perekaman selesai, menunggu resume untuk melanjutkan...")

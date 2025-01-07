@@ -1,9 +1,14 @@
 from pytubefix import YouTube
-YouTube('https://youtu.be/2lAe1cqCOXo').streams.first().download()
-yt = YouTube('http://youtube.com/watch?v=2lAe1cqCOXo')
-yt.streams\
-    .filter(progressive=True, file_extension='mp4')\
-    .order_by('resolution')\
-    .desc()\
-    .first()\
-    .download()
+import sys
+
+
+def download_youtube_audio(url):
+    yt = YouTube(url)
+    audio_stream = yt.streams.filter(only_audio=True).first()
+    filename = f"{yt.title}.mp3"  # Use video title as filename
+    return audio_stream.download(filename=filename)
+
+download_youtube_audio("https://www.youtube.com/watch?v=iR964FRowgA&list=RDiR964FRowgA&start_radio=1")
+
+
+

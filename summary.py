@@ -1,71 +1,94 @@
-from pytube import YouTube
-import google.generativeai as genai
+import os
 import sys
-sys.path.insert(0, 'silero_tts')
-from silero_tts import SileroTTS
-import requests
+import subprocess
+from pytubefix import YouTube
+import google.generativeai as genai
+import whisper
+import torch
 
-def youtube2audio(url: str):
+def download_youtube_audio(url):
     try:
-        # Add headers to mimic a browser request
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-        }
-        
-        # Create a session with the headers
-        session = requests.Session()
-        session.headers.update(headers)
-        
-        # Initialize YouTube with the session
-        yt = YouTube(url, use_oauth=True, allow_oauth_cache=True)
-        yt.bypass_age_gate()
-        
-        # Get the audio stream with highest quality
-        video = yt.streams.filter(only_audio=True, file_extension='mp4').order_by('abr').desc().first()
-        if not video:
+        yt = YouTube(url)
+        audio_stream = yt.streams.filter(only_audio=True).first()
+        if not audio_stream:
             raise Exception("No audio stream found")
-            
-        # Download the audio
-        return video.download()
-        
+        filename = f"{yt.title}.mp3"
+        return audio_stream.download(filename=filename)
     except Exception as e:
-        print(f"Error downloading video: {str(e)}")
+        print(f"Error downloading YouTube audio: {e}")
         return None
 
-# Initialize TTS engine
-tts = SileroTTS(
-    model_id='v3_en',
-    language='en',
-    speaker='en_67',  # Using a clearer speaker
-    sample_rate=48000,  # Ensuring sample rate does not exceed 48000
-    device='cuda',
-    put_accent=True,
-    put_yo=True,
-    num_threads=8  # Optimized number of threads for better processing
-)
+def convert_mp3_to_wav(mp3_path):
+    try:
+        wav_path = mp3_path.replace('.mp3', '.wav')
+        subprocess.run(
+            ["ffmpeg", "-i", mp3_path, wav_path],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return wav_path
+    except subprocess.CalledProcessError as e:
+        print(f"Error converting MP3 to WAV: {e}")
+        return None
 
-# Initialize Gemini model
-model = genai.GenerativeModel('gemini-1.5-flash')
+def audio_to_text(audio_path):
+    if not audio_path:
+        return None
+    
+    try:
 
-print(model)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Using device: {device}")
+        model = whisper.load_model("base").to(device)
+        
 
-file_path = youtube2audio("https://www.youtube.com/watch?v=h5id4erwD4s")
+        result = model.transcribe(audio_path)
+        transcript = result["text"]
+        
+        print(f"Complete Transcript: {transcript}")
+        return transcript
+        
+    except Exception as e:
+        print(f"Error processing audio file: {e}")
+        return None
 
-if file_path is None:
-    print("Failed to download video")
+def cleanup_files(*file_paths):
+    for file_path in file_paths:
+        try:
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(f"Error cleaning up file {file_path}: {e}")
+
+# Configure Gemini API
+try:
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except Exception as e:
+    print(f"Error configuring Gemini API: {e}")
+    sys.exit(1)
+
+# Main Workflow
+# audio_file = download_youtube_audio("https://www.youtube.com/watch?v=r94vuvwUSkY")
+audio_file = download_youtube_audio("https://www.youtube.com/watch?v=bdICz_sBI34")
+if not audio_file:
+    sys.exit("Failed to download audio")
+
+wav_file = convert_mp3_to_wav(audio_file)
+if not wav_file:
+    cleanup_files(audio_file)
+    sys.exit("Failed to convert audio to WAV")
+
+transcript = audio_to_text(wav_file)
+if transcript:
+    try:
+        response = model.generate_content(f"Please provide a concise summary of video :{transcript}")
+        print(f"Summary: {response.text}")
+    except Exception as e:
+        print(f"Error generating summary: {e}")
 else:
-    # Transcribe audio using Silero TTS
-    text = tts.transcribe(file_path)
+    print("Could not generate transcript from audio")
 
-    # Generate summary using Gemini
-    response = model.generate_content(f"Please provide a concise summary of this transcript: {text}")
-    summary = response.text
-
-    print("###############################################")
-    print(summary)
-    print("###############################################")
+# Cleanup
+cleanup_files(audio_file, wav_file)

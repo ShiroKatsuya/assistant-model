@@ -5,10 +5,26 @@ from pytubefix import YouTube
 import google.generativeai as genai
 import whisper
 import torch
+from youtubesearchpython import VideosSearch
+
+
+
+def search_youtube(query):
+    videos_search = VideosSearch(query, limit=1)
+    result = videos_search.result()
+    if 'result' in result and len(result['result']) > 0:
+        video_info = result['result'][0]
+        return video_info.get('link', '')
+    return None  # Return None instead of query if no results found
 
 def download_youtube_audio(url):
+    if not url:  # Check if URL is None or empty
+        print("No valid YouTube URL found")
+        return None
+        
     try:
         yt = YouTube(url)
+        print(f"Found video: {yt.title}")
         audio_stream = yt.streams.filter(only_audio=True).first()
         if not audio_stream:
             raise Exception("No audio stream found")
@@ -37,12 +53,10 @@ def audio_to_text(audio_path):
         return None
     
     try:
-
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Using device: {device}")
         model = whisper.load_model("base").to(device)
         
-
         result = model.transcribe(audio_path)
         transcript = result["text"]
         
@@ -69,9 +83,15 @@ except Exception as e:
     print(f"Error configuring Gemini API: {e}")
     sys.exit(1)
 
-# Main Workflow
-# audio_file = download_youtube_audio("https://www.youtube.com/watch?v=r94vuvwUSkY")
-audio_file = download_youtube_audio("https://www.youtube.com/watch?v=bdICz_sBI34")
+# Search for video and handle potential failure
+query = "Indonesia Explained!"
+youtube_url = search_youtube(query)
+if not youtube_url:
+    sys.exit(f"No YouTube results found for query: {query}")
+
+print(f"Found video URL: {youtube_url}")
+
+audio_file = download_youtube_audio(youtube_url)
 if not audio_file:
     sys.exit("Failed to download audio")
 

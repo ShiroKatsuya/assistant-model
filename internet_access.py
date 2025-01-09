@@ -11,6 +11,7 @@ from functools import lru_cache
 from recording import process_audio, pause_audio_processing, resume_audio_processing,record_audio,process_audio
 import threading
 from voice_internet_access import process_internet_access
+from voice import voice
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 client = genai.GenerativeModel('gemini-1.5-flash')
@@ -78,17 +79,19 @@ def main():
     try:
         while True:
             try:
-         
                 translate = next(audio_processor)
                 if translate:
                     pause_audio_processing()
+                    if any(keyword in translate.lower() for keyword in ["stop internet", "hentikan internet", "stop internet", "matikan internet"]):
+                        voice("Menghentikan akses internet...")
+                        resume_audio_processing()
+                        return None
                     query = translate
                     search_results = ddg_search(query)
                     prompt = create_prompt(query, search_results)
                     response = create_completion_gemini(prompt)
-                    return response  
+                    return response
             except StopIteration:
-                # resume_audio_processing()
                 continue
     except KeyboardInterrupt:
         print("\nOperation cancelled by user")

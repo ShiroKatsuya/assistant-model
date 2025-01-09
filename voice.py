@@ -17,6 +17,27 @@ import re
 # Ensure NLTK's Punkt tokenizer is downloaded
 nltk.download('punkt_tab')
 
+def save_audio(teks):
+
+    # Clean filename by removing invalid characters and whitespace
+    filename = "".join(c for c in teks if c.isalnum() or c in (' ', '-', '_'))[:50]  # Limit length
+    filename = filename.strip().replace(' ', '_')
+    if not filename:  # Fallback if filename is empty after cleaning
+        filename = "audio"
+    
+    tts = SileroTTS(
+        model_id='v3_en',
+        language='en',
+        speaker='en_67',  # Using a clearer speaker
+        sample_rate=48000,  # Ensuring sample rate does not exceed 48000
+        device='cuda',
+        put_accent=True,
+        put_yo=True,
+        num_threads=8  # Optimized number of threads for better processing
+    )
+    output_path = f"{filename}.wav"
+    tts.tts(teks, output_path)
+    return output_path
 
 
 def voice(teks, chunk_length_ms=5500):  # 'chunk_length_ms' is no longer required

@@ -18,3 +18,6 @@ pip install pydantic
 pip install langchain-community
 pip install duckduckgo-search
 pip install playwright
+pip install youtube-search-python
+pip install pytubefix
+pip install whisper

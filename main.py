@@ -16,7 +16,7 @@ import threading
 from o_detection_transformers import objek_deteksi
 from internet_access import main as internet_access
 from main_ui import embed_app
-
+from youtube_search import main as youtube_search
 os.environ['MONSTER_API_KEY']
 monster_client = client()
 
@@ -31,9 +31,9 @@ detection_lock = threading.Lock()  # Add lock for thread safety
 
 def main():
     global detection_thread
-    embed_app()
-    audio_thread_intro.start()
-    audio_thread_intro.join()
+    # embed_app()
+    # audio_thread_intro.start()
+    # audio_thread_intro.join()
     try:
         for translate in process_audio():
             if any(keyword in translate.lower() for keyword in ["create image", "create images", "buatkan saya gambar", "gambar", "image", "buatkan gambar","picture","pictures","buatkan gambar","photo","photos","buatkan gambar","Draw","draw","Make"]):
@@ -73,27 +73,105 @@ def main():
                 finally:
                     sentiment.close()
                     resume_audio_processing()
-            elif any(keyword in translate.lower() for keyword in ["internet", "access internet", "connect to internet", "internet access","internet connection","saya ingin akses internet","pelase access internet"]):
+
+            elif any(keyword in translate.lower() for keyword in ["stop internet", "hentikan internet", "stop internet", "stop internet", "matikan internet"]):
                 try:
-                   
-                    audio_thread = threading.Thread(target=audio_thread_intro_internet_access)
-                    audio_thread.start()
-                    audio_thread.join()
-                    pause_audio_processing()
-                    response = internet_access()
-                    if response and hasattr(response, 'text'):
-                  
-                        print(f"Rina: {response.text}")
-                        cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
-                        voice(cleaned_response)
-                    else:
-                        print("No response received from internet access")
+                    with detection_lock:
+                        if detection_thread and detection_thread.is_alive():
+                            print("Menghentikan internet...")
+                            voice("Menghentikan internet.")
+                            detection_stop_event.set()
+                            detection_thread.join()
+                            detection_thread = None  # Clear the thread reference
+                            print("internet dihentikan.")
+                        else:
+                            print("internet tidak berjalan.")
+                            voice("internet tidak berjalan.")
+                except Exception as e:
+                    print(f"Error saat menghentikan internet: {e}")
+                finally:
+                    resume_audio_processing()
+                continue  # Add continue to skip the next elif block
+                
+            elif any(keyword in translate.lower() for keyword in ["internet", "access internet", "connect to internet", "internet access", "internet connection", "saya ingin akses internet", "please access internet"]):
+                try:
+                    with detection_lock:
+                        if detection_thread and detection_thread.is_alive():
+                            print("Internet sudah berjalan.")
+                        else:
+                            print("Memulai akses internet...")
+                            voice("Memulai akses internet.")
+                            detection_stop_event.clear()
+                            detection_thread = threading.Thread(target=internet_access, args=(detection_stop_event,))
+                            detection_thread.daemon = True
+                            detection_thread.start()
+                            
+                            audio_thread = threading.Thread(target=audio_thread_intro_internet_access)
+                            audio_thread.start()
+                            audio_thread.join()
+                            
+                            while not detection_stop_event.is_set():
+                                response = internet_access()
+                                if response and hasattr(response, 'text'):
+                                    print(f"Rina: {response.text}")
+                                    cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
+                                    voice(cleaned_response)
+                                else:
+                                    print("No response received from internet access")
+                                    break
                 except TypeError as e:
                     print(f"Error during internet access: {e}")
                     voice("Sorry, I encountered an error while accessing the internet")
                 except Exception as e:
                     print(f"Unexpected error during internet access: {e}")
                     voice("Sorry, something went wrong while accessing the internet")
+                finally:
+                    resume_audio_processing()
+            elif any(keyword in translate.lower() for keyword in ["stop youtube", "hentikan youtube", "stop youtube", "stop youtube"]):
+                try:
+                    with detection_lock:
+                        if detection_thread and detection_thread.is_alive():
+                            print("Menghentikan youtube search...")
+                            voice("Menghentikan youtube search...")
+                            detection_stop_event.set()
+                            detection_thread.join()
+                            detection_thread = None  # Clear the thread reference
+                            print("youtube search dihentikan.")
+                        else:
+                            print("youtube search tidak berjalan.")
+                            voice("youtube search tidak berjalan.")
+                except Exception as e:
+                    print(f"Error saat menghentikan youtube search: {e}")
+                    voice("Sorry, something went wrong while stopping the youtube search")
+                finally:
+                    resume_audio_processing()
+                continue
+            elif any(keyword in translate.lower() for keyword in ["youtube","youtube search","youtube search","youtube search","youtube search"]):
+                try:
+                    with detection_lock:
+                        if detection_thread and detection_thread.is_alive():
+                            print("youtube sudah berjalan.")
+                        else:
+                            print("Memulai youtube...")
+                            voice("Memulai youtube.")
+                            detection_stop_event.clear()
+                            detection_thread = threading.Thread(target=youtube_search, args=(detection_stop_event,))
+                            detection_thread.daemon = True
+                            detection_thread.start()
+                            
+                            while not detection_stop_event.is_set():
+                                response = youtube_search()
+                                if response and hasattr(response, 'text'):
+                                    print(f"Rina: {response.text}")
+                                    cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
+                                    voice(cleaned_response)
+                                else:
+                                    print("No response received from youtube search")
+                                    break
+                                
+                except Exception as e:
+                    print(f"Unexpected error during youtube search: {str(e)}")
+                    voice("Sorry, something went wrong during youtube search")
                 finally:
                     resume_audio_processing()
             elif any(keyword in translate.lower() for keyword in ["stop camera","hentikan kamera","stop kamera","stop camera"]):
@@ -129,6 +207,7 @@ def main():
                 except Exception as e:
                     print(f"Unexpected error during object detection: {str(e)}")
                     voice("Sorry, something went wrong during object detection")
+            
             else:
                 try:
              

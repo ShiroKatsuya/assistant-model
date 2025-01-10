@@ -13,21 +13,22 @@ import os
 import google.generativeai as genai
 from monsterapi import client
 import threading
-from o_detection_transformers import objek_deteksi
+from Ai_Memory_Long_Term import main as ai_memory_long_term
 from internet_access import main as internet_access
 from main_ui import embed_app
 from youtube_search import main as youtube_search
+from langchain_core.messages import get_buffer_string, HumanMessage, SystemMessage, AIMessage
 os.environ['MONSTER_API_KEY']
 monster_client = client()
 
+from o_detection_transformers import objek_deteksi
 
 detection_stop_event = threading.Event()
 detection_thread = None
 detection_lock = threading.Lock()  # Add lock for thread safety
 
-
-
-            
+# Move conversation_history outside the else block, at class/global level
+conversation_history = []
 
 def main():
     global detection_thread
@@ -210,15 +211,28 @@ def main():
             
             else:
                 try:
-             
                     pause_audio_processing()
-                    genai.configure(api_key = os.getenv("GEMINI_API_KEY"))
-                    model = genai.GenerativeModel('gemini-1.5-flash')
-                    chat = model.start_chat(history=[])
-                    response = chat.send_message(translate)
-                    print(f"Rina: {response.text}")
-                    cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')  # Remove asterisks and extra newlines from the response
-                    voice(cleaned_response)  # Call the voice function with the cleaned response
+                    
+                    # Send message with full conversation history
+                    responses = ai_memory_long_term(
+                        initial_message=translate,
+                        second_message=None,
+                        full_history=conversation_history  # Pass the full history
+                    )
+                    
+                    if responses:
+                        final_response = responses[-1]
+                        for node, updates in final_response.items():
+                            if "messages" in updates:
+                                for msg in updates["messages"]:
+                                    if isinstance(msg, AIMessage):
+                                        cleaned_response = msg.content.replace('*', '').replace('\n\n', '\n')
+                                        voice(cleaned_response)
+                                        # Add both the question and response to history
+                                        conversation_history.extend([translate, cleaned_response])
+                                        break
+                    else:
+                        print("No response received from AI")
                 except TypeError as e:
                     print(f"Error during chat generation: {e}")
                 except Exception as e:

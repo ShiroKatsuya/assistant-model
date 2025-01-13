@@ -8,23 +8,22 @@ import os
 import concurrent.futures
 import torch
 from functools import lru_cache
-from recording import process_audio, pause_audio_processing, resume_audio_processing,record_audio,process_audio
-import threading
-from voice_internet_access import process_internet_access
 from voice import voice
-from dataclasses import dataclass
+import json
+from pathlib import Path
 import time
 import random
-from pathlib import Path
-import json
-from open_website import embed_app
 from bs4 import BeautifulSoup
+from dataclasses import dataclass
+from open_website import embed_app
+
+# Remove duplicate voice import
+from voice import voice
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 client = genai.GenerativeModel('gemini-1.5-flash')
 
 os.environ["USER_AGENT"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
 
 @dataclass
 class Document:
@@ -57,9 +56,8 @@ def process_url(args):
     url, use_simulation = args
     return get_and_transform_page(url, use_simulation)
 
-
 @lru_cache(maxsize=100)
-def ddg_search(query, use_simulation=True):
+def ddg_search(query, use_simulation=False):
     """Cache search results for identical queries with simulation option"""
     if use_simulation:
         print("\nSimulating search process...")
@@ -146,31 +144,25 @@ def get_and_transform_page(url, use_simulation=False):
         'lists': [li.text.strip() for li in soup.find_all('li') if li.text.strip()]
     }
 
-
     if use_simulation:
         print("Extracted content by type:")
 
         try:
- 
             voiced_messages = set()
-
 
             def voice_once(message_key, condition):
                 if condition and message_key not in voiced_messages:
                     voice(message_key)
                     voiced_messages.add(message_key)
-                  
 
             if content['title']:
                 print("\nTitle:")
                 print(content['title'])
                 voice_once("Multiple titles found", len(content['title']) >= 3)
-       
 
             if content['headings']:
                 print("Headings Accessed")
                 voice_once("Multiple headings found", len(content['headings']) >= 3)
-    
 
             if content['paragraphs']:
                 print("Paragraphs Accessed") 
@@ -179,7 +171,6 @@ def get_and_transform_page(url, use_simulation=False):
             if content['lists']:
                 print("List Accessed")
                 voice_once("Multiple list items found", len(content['lists']) >= 3)
-
 
         except Exception as e:
             print(f"Voice error: {e}")
@@ -208,7 +199,6 @@ def truncate(text, word_limit=400):
 def create_prompt(query, search_results):
     """Create a formatted prompt with search context"""
     prompt = (
-
         "Please provide a detailed explanation about the following topic.\n"
         "Note: If the query relates to stores, products, shopping, or purchasing, provide only basic factual information without detailed explanations."
         f"{'\n\n---\n\n'.join(search_results)}\n\n"
@@ -216,7 +206,7 @@ def create_prompt(query, search_results):
     )
     return prompt
 
-def create_completion_gemini(prompt, use_simulation=True):
+def create_completion_gemini(prompt, use_simulation=False):
     """Generate completion using Gemini model"""
     if use_simulation:
         print("\nGenerating response using AI model...")
@@ -232,40 +222,40 @@ def create_completion_gemini(prompt, use_simulation=True):
     response = chat.send_message(prompt)
     return response
 
-
 def main():
-
     if torch.cuda.is_available():
         print("CUDA is available. Utilizing GPU for processing.")
     else:
         print("CUDA is not available. Proceeding with CPU.")
-    audio_processor = process_audio()
-    resume_audio_processing()
+
+    # Get simulation preference
+    use_simulation = input("Use simulated internet access? (y/n): ").lower() == 'y'
+    
+    if use_simulation:
+        print("\nInitializing simulated internet access...")
+        try:
+            voice("Initializing simulated internet access...")
+            time.sleep(1)
+        except Exception as e:
+            print(f"Voice error: {e}")
+    
+    # Get search query from user
+    search_query = input("Enter your search query: ")
+    
+    # Perform search and get results
+    search_results = ddg_search(search_query, use_simulation=use_simulation)
+    
+    # Create prompt with search results
+    prompt = create_prompt(search_query, search_results)
+    
+    # Generate response
+    response = create_completion_gemini(prompt, use_simulation=use_simulation)
+    print("\nResponse:", response.text)
+    cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
     try:
-        
-        while True:
-            try:
-                translate = next(audio_processor)
-                if translate:
-                    pause_audio_processing()
-                    if any(keyword in translate.lower() for keyword in ["stop internet", "hentikan internet", "stop internet", "matikan internet"]):
-                        voice("Menghentikan akses internet...")
-                        resume_audio_processing()
-                        return None
-                    query = translate
-                    search_results = ddg_search(query,use_simulation=True)
-                    prompt = create_prompt(query, search_results)
-                    response = create_completion_gemini(prompt,use_simulation=True)
-                    return response
-            except StopIteration:
-                continue
-    except KeyboardInterrupt:
-        print("\nOperation cancelled by user")
-        return None
+        voice(cleaned_response)
     except Exception as e:
-        print(f"\nAn error occurred: {str(e)}")
-        resume_audio_processing()
-        return None
+        print(f"Voice error: {e}")
 
 if __name__ == "__main__":
     main()

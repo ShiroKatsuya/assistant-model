@@ -17,6 +17,10 @@ import uuid
 from tavily import Client
 import json
 from datetime import datetime
+import torch
+
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class State(MessagesState):
     recall_memories: List[str]
@@ -58,18 +62,63 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
     embeddings = GeminiEmbeddings()
     recall_vector_store = InMemoryVectorStore(embeddings)
 
-    # Load existing memories from file if it exists
+    # Modified memory loading section
     MEMORY_FILE = "ai_memories.json"
     if os.path.exists(MEMORY_FILE):
         with open(MEMORY_FILE, 'r') as f:
             saved_memories = json.load(f)
-            for memory in saved_memories:
-                document = Document(
+            
+        def filter_relevant_memories(query: str, memories: list, threshold: float = 0.7) -> list:
+            """Filter memories using pre-computed embeddings and batch processing."""
+            query_embedding = embeddings.embed_query(query)
+            query_tensor = torch.tensor(query_embedding, device=device)
+            
+            # Prepare batch of memory embeddings, handle missing embeddings gracefully
+            memory_embeddings = []
+            for memory in memories:
+                try:
+                    embedding = memory['metadata']['embedding']
+                    memory_embeddings.append(embedding)
+                except KeyError:
+                    print(f"Warning: Missing embedding for memory ID {memory['id']}")
+                    continue  # Skip this memory
+            
+            if not memory_embeddings:
+                return []  # Return empty if no embeddings are available
+            
+            memory_embeddings_tensor = torch.tensor(memory_embeddings, device=device)
+            
+            # Calculate similarities in a batch
+            similarities = torch.nn.functional.cosine_similarity(
+                query_tensor.unsqueeze(0), 
+                memory_embeddings_tensor,
+                dim=1
+            )
+            
+            relevant_memories = [
+                memory for memory, similarity in zip(memories, similarities) if similarity > threshold
+            ]
+            
+            return relevant_memories
+
+        # Only load memories relevant to the initial message if provided
+        if initial_message:
+            relevant_memories = filter_relevant_memories(initial_message, saved_memories)
+            memory_batch = [
+                Document(
                     page_content=memory['content'],
                     id=memory['id'],
                     metadata=memory['metadata']
-                )
-                recall_vector_store.add_documents([document])
+                ) for memory in relevant_memories
+            ]
+            
+            print(f"Loaded {len(memory_batch)} relevant memories from file.")
+            
+            batch_size = 64
+            for i in range(0, len(memory_batch), batch_size):
+                batch = memory_batch[i:i + batch_size]
+                with torch.no_grad():
+                    recall_vector_store.add_documents(batch)
 
     def get_user_id(config: RunnableConfig) -> str:
         user_id = config["configurable"].get("user_id")
@@ -79,10 +128,13 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
     @tool
     def save_recall_memory(memory: str, config: RunnableConfig) -> str:
-        """Save memory to vectorstore and persistent storage."""
+        """Save memory to vectorstore and persistent storage with pre-computed embeddings."""
         user_id = get_user_id(config)
         memory_id = str(uuid.uuid4())
         timestamp = datetime.now().isoformat()
+        
+        # Compute embedding once and store it
+        memory_embedding = embed_text(memory)
         
         document = Document(
             page_content=memory,
@@ -90,7 +142,8 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             metadata={
                 "user_id": user_id,
                 "timestamp": timestamp,
-                "type": "conversation"
+                "type": "conversation",
+                "embedding": memory_embedding  # Store the embedding
             }
         )
         
@@ -103,7 +156,8 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             "metadata": {
                 "user_id": user_id,
                 "timestamp": timestamp,
-                "type": "conversation"
+                "type": "conversation",
+                "embedding": memory_embedding  # Store the embedding
             }
         }
         
@@ -129,33 +183,42 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
         documents = recall_vector_store.similarity_search(
             query, 
-            k=5,
+            k=5,  # Increased number of results
             filter=_filter_function,
             search_type="similarity",
-            score_threshold=0.7
+            score_threshold=0.7  # Only return relevant matches
         )
         
+        # Sort by timestamp if available
         documents.sort(key=lambda x: x.metadata.get("timestamp", ""), reverse=True)
         
         return [doc.page_content for doc in documents]
 
     search = TavilySearchResults(max_results=1)
     tools = [save_recall_memory, search_recall_memories, search]
-
-    SYSTEM_PROMPT = """You are a helpful assistant with advanced long-term memory capabilities. Focus on the current interaction while using memory tools to provide relevant context when needed.
+   # Define the prompt template for the agent
+    SYSTEM_PROMPT = """You are a helpful assistant with advanced long-term memory capabilities. Powered by a stateless LLM, you must rely on external memory to store information between conversations. Utilize the available memory tools to store and retrieve important details that will help you better attend to the user's needs and understand their context.
 
     Memory Usage Guidelines:
-    1. Store important information about the current interaction
-    2. Reference past memories only when directly relevant
-    3. Keep responses focused on the current topic
-    4. Use memory to maintain conversation continuity
-    5. Prioritize recent and relevant memories
+    1. Actively use memory tools (save_recall_memory) to store ALL important information about the user
+    2. Make informed suppositions and extrapolations based on stored memories
+    3. Regularly reflect on past interactions to identify patterns and preferences
+    4. Update your mental model of the user with each new piece of information
+    5. Cross-reference new information with existing memories for consistency
+    6. Prioritize storing emotional context and personal values alongside facts
+    7. Use memory to anticipate needs and tailor responses to the user's style
+    8. Recognize and acknowledge changes in the user's situation or perspectives over time
+    9. Leverage memories to provide personalized examples and analogies
+    10. Recall past challenges or successes to inform current problem-solving
 
     ## Recall Memories
+    Recall memories are contextually retrieved based on the current conversation:
     {recall_memories}
 
     ## Instructions
-    Focus on the current interaction while using memory tools when needed for context."""
+    Engage with the user naturally while ensuring ALL important information is saved using save_recall_memory. Store complete context and details, not just basic facts. Cross-reference memories for consistency and use them to provide personalized responses."""
+
+
 
     tokenizer = tiktoken.get_encoding("cl100k_base")
 
@@ -165,17 +228,21 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             "<recall_memory>\n" + "\n".join(state["recall_memories"]) + "\n</recall_memory>"
         )
         
+        # Get conversation history
         messages = [
             SystemMessage(content=SYSTEM_PROMPT.format(recall_memories=recall_str)),
         ]
         
+        # Add conversation history if available
         if full_history:
-            for msg in full_history[-2:]:  # Only include last 2 messages for immediate context
+            for msg in full_history[-5:]:  # Include last 5 messages for context
                 messages.append(HumanMessage(content=msg))
                 
+        # Add current message
         current_message = state["messages"][-1].content if isinstance(state["messages"][-1], HumanMessage) else state["messages"][-1]
         messages.append(HumanMessage(content=current_message))
 
+        # Always save new information
         if isinstance(state["messages"][-1], HumanMessage):
             save_recall_memory.invoke(
                 f"User message: {state['messages'][-1].content}",
@@ -185,6 +252,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
         try:
             prediction = model.generate_content([msg.content for msg in messages])
             if prediction.text:
+                # Save AI response as well
                 save_recall_memory.invoke(
                     f"Assistant response: {prediction.text}",
                     config={"configurable": {"user_id": "1"}}
@@ -206,6 +274,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
         """Load memories with improved context awareness."""
         current_question = state["messages"][-1].content if isinstance(state["messages"][-1], HumanMessage) else ""
         
+        # Search with expanded context
         recall_memories = search_recall_memories.invoke(
             current_question,
             config=config
@@ -250,9 +319,11 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
     config = {"configurable": {"user_id": "1", "thread_id": "1"}}
 
+    # Create initial state with just the current message
     messages = [HumanMessage(content=initial_message)] if initial_message else []
     current_state = {"messages": messages}
     
+    # Process with graph
     responses = []
     for response in graph.stream(current_state, config=config):
         responses.append(response)

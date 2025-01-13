@@ -14,8 +14,8 @@ import speech_recognition as sr
 import threading
 import re
 
-# Ensure NLTK's Punkt tokenizer is downloaded
-nltk.download('punkt_tab')
+# # Ensure NLTK's Punkt tokenizer is downloaded
+# nltk.download('punkt_tab')
 
 def save_audio(teks):
 

@@ -10,7 +10,6 @@ import subprocess
 import os
 import random
 
-
 def get_random_file_recording():
     intro_files_recording = []
     if os.path.exists('All_Intro_Recording'):
@@ -47,6 +46,7 @@ r = sr.Recognizer()
 
 
 audio_queue = queue.Queue()
+
 
 
 resume_event = threading.Event()

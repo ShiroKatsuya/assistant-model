@@ -215,10 +215,9 @@ def main():
                     
                     # Send message with full conversation history
                     responses = ai_memory_long_term(
-                        initial_message=translate,
-                        second_message=None,
-                        full_history=conversation_history  # Pass the full history
+                        initial_message=translate
                     )
+                    
                     
                     if responses:
                         final_response = responses[-1]
@@ -226,10 +225,45 @@ def main():
                             if "messages" in updates:
                                 for msg in updates["messages"]:
                                     if isinstance(msg, AIMessage):
+                                        # Skip tool code responses
+                                        if (hasattr(msg, 'additional_kwargs') and 
+                                            (msg.additional_kwargs.get('tool_calls') or
+                                             msg.additional_kwargs.get('tool_code'))):
+                                            continue
+                                        
+                                        # Get the full response content
                                         cleaned_response = msg.content.replace('*', '').replace('\n\n', '\n')
-                                        voice(cleaned_response)
-                                        # Add both the question and response to history
-                                        conversation_history.extend([translate, cleaned_response])
+                                        
+                                        # Split response into lines
+                                        response_lines = cleaned_response.split('\n')
+                                        
+                                        # Process each line, skipping tool_code blocks
+                                        valid_lines = []
+                                        skip_block = False
+                                        for line in response_lines:
+                                            line = line.strip()
+                                            # Check for start of tool_code block
+                                            if line.startswith('```tool_code'):
+                                                skip_block = True
+                                                continue
+                                            # Check for end of code block    
+                                            if line.startswith('```') and skip_block:
+                                                skip_block = False
+                                                continue
+                                            # Skip lines in tool_code block
+                                            if skip_block:
+                                                continue
+                                            # Skip individual tool_code lines
+                                            if line.startswith('tool_code'):
+                                                continue
+                                            if line:
+                                                valid_lines.append(line)
+                                        
+                                        # Only process if we have valid lines
+                                        if valid_lines:
+                                            final_response = ' '.join(valid_lines)
+                                            voice(final_response)
+                                            conversation_history.extend([translate, final_response])
                                         break
                     else:
                         print("No response received from AI")

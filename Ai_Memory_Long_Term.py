@@ -1,5 +1,5 @@
 from typing import List, Literal, Optional
-import google.generativeai as genai
+from google import genai
 import tiktoken
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.documents import Document
@@ -19,8 +19,24 @@ import json
 from datetime import datetime
 import torch
 
+from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
+from google.genai.types import (GenerateContentConfig
+)
+
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+gemini_config = GenerateContentConfig(
+    temperature=0.2,
+    top_p=0.95,
+    top_k=20,
+    candidate_count=1,
+    seed=5,
+    max_output_tokens=500,
+    stop_sequences=["STOP!"],
+)
 
 class State(MessagesState):
     recall_memories: List[str]
@@ -28,14 +44,15 @@ class State(MessagesState):
 
 def main(initial_message: str = None, second_message: str = None, full_history: List[str] = None):
     # Configure Gemini
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
+    model_id = "gemini-2.0-flash-exp"
     # Configure Tavily
     tavily_api_key = os.getenv("TAVILY_API_KEY")
     Client.api_key = tavily_api_key  
 
-    model = genai.GenerativeModel('gemini-1.5-flash') 
 
     def embed_text(text: str) -> List[float]:
+        import google.generativeai as genai
         """Generate embeddings using Gemini model."""
         try:
             embedding = genai.embed_content(
@@ -250,7 +267,11 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             )
 
         try:
-            prediction = model.generate_content([msg.content for msg in messages])
+            prediction = client.models.generate_content(
+                model=model_id,
+                contents=[msg.content for msg in messages],
+                config=gemini_config
+            )
             if prediction.text:
                 # Save AI response as well
                 save_recall_memory.invoke(

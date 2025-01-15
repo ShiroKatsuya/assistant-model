@@ -1,4 +1,4 @@
-import google.generativeai as genai
+# import google.generativeai as genai
 from langchain_community.document_loaders import AsyncChromiumLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from duckduckgo_search import DDGS
@@ -20,8 +20,10 @@ import json
 from open_website import embed_app
 from bs4 import BeautifulSoup
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-client = genai.GenerativeModel('gemini-1.5-flash')
+from google import genai
+
+# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# client = genai.GenerativeModel('gemini-1.5-flash')
 
 os.environ["USER_AGENT"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 

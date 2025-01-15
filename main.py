@@ -10,7 +10,7 @@ from image_audio import audio_thread_intro_image, play_audio, audio_file
 from intro import audio_thread_intro
 from voice_internet_access import audio_thread_intro_internet_access
 import os
-import google.generativeai as genai
+from google import genai
 from monsterapi import client
 import threading
 from Ai_Memory_Long_Term import main as ai_memory_long_term
@@ -21,7 +21,7 @@ from langchain_core.messages import get_buffer_string, HumanMessage, SystemMessa
 os.environ['MONSTER_API_KEY']
 monster_client = client()
 
-from o_detection_transformers import objek_deteksi
+# from o_detection_transformers import objek_deteksi
 
 detection_stop_event = threading.Event()
 detection_thread = None
@@ -29,6 +29,8 @@ detection_lock = threading.Lock()  # Add lock for thread safety
 
 # Move conversation_history outside the else block, at class/global level
 conversation_history = []
+client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
+model_id = "gemini-2.0-flash-exp"
 
 def main():
     global detection_thread
@@ -63,9 +65,9 @@ def main():
                     image.show()
               
                     sentiment = image
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    
          
-                    response = model.generate_content(["describe the image in detail", sentiment])
+                    response = client.models.generate_content(model=model_id, contents=[sentiment, "Briefly explain the meaning of the image and provide theoretical explanations or in-depth information related to what is depicted in the image."])
                     cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
                     print(cleaned_response)
                     voice(cleaned_response)
@@ -175,39 +177,39 @@ def main():
                     voice("Sorry, something went wrong during youtube search")
                 finally:
                     resume_audio_processing()
-            elif any(keyword in translate.lower() for keyword in ["stop camera","hentikan kamera","stop kamera","stop camera"]):
-                try:
-                    with detection_lock:
-                        if detection_thread and detection_thread.is_alive():
-                            print("Menghentikan deteksi objek...")
-                            voice("Menghentikan deteksi objek.")
-                            detection_stop_event.set()
-                            detection_thread.join()
-                            detection_thread = None  # Clear the thread reference
-                            print("Deteksi objek dihentikan.")
-                        else:
-                            print("Kamera tidak berjalan.")
-                            voice("Kamera tidak berjalan.")
-                except Exception as e:
-                    print(f"Error saat menghentikan kamera: {e}")
-                finally:
-                    resume_audio_processing()
-            elif any(keyword in translate.lower() for keyword in ["open camera","buka kamera","kamera","camera"]):
-                try:
-                    with detection_lock:
-                        if detection_thread and detection_thread.is_alive():
-                            print("Kamera sudah berjalan.")
-                            # voice("Kamera sudah berjalan.")
-                        else:
-                            print("Memulai deteksi objek...")
-                            voice("Memulai deteksi objek.")
-                            detection_stop_event.clear()
-                            detection_thread = threading.Thread(target=objek_deteksi, args=(detection_stop_event,))
-                            detection_thread.daemon = True  # Make thread daemon so it exits when main thread exits
-                            detection_thread.start()
-                except Exception as e:
-                    print(f"Unexpected error during object detection: {str(e)}")
-                    voice("Sorry, something went wrong during object detection")
+            # elif any(keyword in translate.lower() for keyword in ["stop camera","hentikan kamera","stop kamera","stop camera"]):
+            #     try:
+            #         with detection_lock:
+            #             if detection_thread and detection_thread.is_alive():
+            #                 print("Menghentikan deteksi objek...")
+            #                 voice("Menghentikan deteksi objek.")
+            #                 detection_stop_event.set()
+            #                 detection_thread.join()
+            #                 detection_thread = None  # Clear the thread reference
+            #                 print("Deteksi objek dihentikan.")
+            #             else:
+            #                 print("Kamera tidak berjalan.")
+            #                 voice("Kamera tidak berjalan.")
+            #     except Exception as e:
+            #         print(f"Error saat menghentikan kamera: {e}")
+            #     finally:
+            #         resume_audio_processing()
+            # elif any(keyword in translate.lower() for keyword in ["open camera","buka kamera","kamera","camera"]):
+            #     try:
+            #         with detection_lock:
+            #             if detection_thread and detection_thread.is_alive():
+            #                 print("Kamera sudah berjalan.")
+            #                 # voice("Kamera sudah berjalan.")
+            #             else:
+            #                 print("Memulai deteksi objek...")
+            #                 voice("Memulai deteksi objek.")
+            #                 detection_stop_event.clear()
+            #                 detection_thread = threading.Thread(target=objek_deteksi, args=(detection_stop_event,))
+            #                 detection_thread.daemon = True  # Make thread daemon so it exits when main thread exits
+            #                 detection_thread.start()
+            #     except Exception as e:
+            #         print(f"Unexpected error during object detection: {str(e)}")
+            #         voice("Sorry, something went wrong during object detection")
             
             else:
                 try:

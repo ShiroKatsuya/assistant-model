@@ -5,8 +5,10 @@ import wave
 import time
 import threading
 import numpy as np
-from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip
+from moviepy import VideoFileClip, AudioFileClip
 import os
+from queue import Queue
+from datetime import datetime
 
 from recording import (
     resume_audio_processing, 
@@ -22,11 +24,8 @@ def objek_deteksi(stop_event=None):
     CHANNELS = 1
     RATE = 48000
     CHUNK = 1024
-    RECORD_SECONDS = 10
-    
-    # Video recording settings
-    temp_video = "temp_video.avi"
-    temp_audio = "temp_audio.wav"
+    SILENCE_THRESHOLD = 4000
+    SILENCE_DURATION = 2.0  # Duration of silence before stopping recording
     
     # Initialize audio recording
     audio = pyaudio.PyAudio()
@@ -34,113 +33,165 @@ def objek_deteksi(stop_event=None):
                        channels=CHANNELS,
                        rate=RATE,
                        input=True,
-                       input_device_index=1,
+                    #    input_device_index=device_index,
                        frames_per_buffer=CHUNK)
-
-    frames = []  # For audio frames
-    internal_stop_event = threading.Event() if stop_event is None else stop_event
     
-    def record_audio():
-        print("Recording audio...")
-        for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-            if internal_stop_event.is_set():
-                break
-            try:
-                data = stream.read(CHUNK)
-                frames.append(data)
-            except Exception as e:
-                print(f"Error recording audio: {e}")
-                break
-        print("Audio recording finished")
-
-    # Initialize video capture
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Could not open video source.")
+    # Initialize video capture with retries
+    max_retries = 3
+    retry_count = 0
+    cap = None
+    
+    while retry_count < max_retries:
+        cap = cv2.VideoCapture(0)
+        if cap.isOpened():
+            break
+        print(f"Failed to open camera, attempt {retry_count + 1} of {max_retries}")
+        retry_count += 1
+        time.sleep(1)  # Wait before retrying
+        
+    if not cap or not cap.isOpened():
+        print("Error: Could not open video source after multiple attempts.")
+        if stream:
+            stream.stop_stream()
+            stream.close()
+        audio.terminate()
         return
-
-    # Get video properties
+    
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = 30.0
 
-    # Create video writer
-    out = cv2.VideoWriter(temp_video, cv2.VideoWriter_fourcc(*'XVID'), fps, (frame_width, frame_height))
+    # Shared variables
+    recording = False
+    frames_queue = Queue()
+    stop_event = threading.Event()
 
-    # Start audio recording in separate thread
+    def detect_sound(data):
+        """Detect if there is sound in audio data."""
+        audio_data = np.frombuffer(data, dtype=np.int16)
+        return np.max(np.abs(audio_data)) > SILENCE_THRESHOLD
+
+    frames = []  # For audio frames
+    internal_stop_event = threading.Event() if stop_event is None else stop_event
+
+    def save_recording(audio_frames, video_frames, start_time):
+        """Save the recorded audio and video."""
+        # Delete previous recording if exists
+        output_filename = "recording_camp.mp4"
+        if os.path.exists(output_filename):
+            os.remove(output_filename)
+
+        temp_video = "temp_video.avi"
+        temp_audio = "temp_audio.wav"
+
+        # Save video
+        out = cv2.VideoWriter(temp_video, cv2.VideoWriter_fourcc(*'XVID'), fps, (frame_width, frame_height))
+        for frame in video_frames:
+            out.write(frame)
+        out.release()
+
+        # Save audio
+        with wave.open(temp_audio, 'wb') as wf:
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(audio.get_sample_size(FORMAT))
+            wf.setframerate(RATE)
+            wf.writeframes(b''.join(audio_frames))
+
+        # Combine audio and video
+        video_clip = VideoFileClip(temp_video)
+        audio_clip = AudioFileClip(temp_audio)
+        
+        final_clip = video_clip.with_audio(audio_clip)
+        final_clip.write_videofile(output_filename, codec='h264_nvenc')
+
+        # Clean up
+        video_clip.close()
+        audio_clip.close()
+        os.remove(temp_video)
+        os.remove(temp_audio)
+        print(f"Saved recording to {output_filename}")
+    
+    def record_audio():
+        """Record audio and trigger video recording when sound is detected."""
+        nonlocal recording
+        audio_frames = []
+        video_frames = []
+        last_sound_time = time.time()
+        
+        while not internal_stop_event.is_set():
+            data = stream.read(CHUNK)
+            has_sound = detect_sound(data)
+            
+            if has_sound:
+                last_sound_time = time.time()
+                if not recording:
+                    recording = True
+                    print("Sound detected - Starting recording")
+                    audio_frames = []
+                    video_frames = []
+                    start_time = time.time()
+                
+                audio_frames.append(data)
+                # Get accumulated video frames
+                while not frames_queue.empty():
+                    video_frames.append(frames_queue.get())
+                
+            elif recording:
+                audio_frames.append(data)
+                while not frames_queue.empty():
+                    video_frames.append(frames_queue.get())
+                
+                # Check if silence duration exceeded
+                if time.time() - last_sound_time > SILENCE_DURATION:
+                    print("Silence detected - Stopping recording")
+                    if audio_frames and video_frames:
+                        save_recording(audio_frames, video_frames, start_time)
+                    recording = False
+
+    print("Starting camera - Press 'q' to quit")
+    
+    # Start audio recording thread
     audio_thread = threading.Thread(target=record_audio)
     audio_thread.start()
-
-    print("Recording video...")
-    start_time = time.time()
     
-    try:
-        # Record for RECORD_SECONDS
-        while (time.time() - start_time) < RECORD_SECONDS and not internal_stop_event.is_set():
-            ret, frame = cap.read()
-            if not ret:
-                print("Failed to grab frame")
-                break
-                
-            # Write frame
-            out.write(frame)
+    # Main video capture loop
+    while not internal_stop_event.is_set():
+        ret, frame = cap.read()
+        if not ret:
+            print("Error reading frame from camera")
+            break
             
-            # Display frame
-            cv2.imshow('Recording', frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-    finally:
-        # Clean up video recording
-        cap.release()
-        out.release()
-        cv2.destroyAllWindows()
-
-        # Clean up audio recording
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
-
-        # Wait for audio thread to complete
-        audio_thread.join()
-
-        # Save audio file if we have frames
-        if frames:
-            with wave.open(temp_audio, 'wb') as wf:
-                wf.setnchannels(CHANNELS)
-                wf.setsampwidth(audio.get_sample_size(FORMAT))
-                wf.setframerate(RATE)
-                wf.writeframes(b''.join(frames))
-
-            try:
-                # Combine audio and video
-                video_clip = VideoFileClip(temp_video)
-                audio_clip = AudioFileClip(temp_audio)
-                final_clip = video_clip.with_audio(audio_clip)
-                final_clip.write_videofile('camera_record4.mp4', codec='h264_nvenc')
-
-                # Clean up clips
-                video_clip.close()
-                audio_clip.close()
-            except Exception as e:
-                print(f"Error combining audio and video: {e}")
-            finally:
-                # Clean up temporary files
-                if os.path.exists(temp_video):
-                    os.remove(temp_video)
-                if os.path.exists(temp_audio):
-                    os.remove(temp_audio)
-
-        # Start audio recording thread if not already running
-        record_thread = threading.Thread(target=record_audio, daemon=True)
-        record_thread.start()
+        if recording:
+            frames_queue.put(frame.copy())
+            
+        # Display recording status
+        status = "Recording" if recording else "Waiting for sound"
+        cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         
-        # Start audio processing thread if not already running
-        process_thread = threading.Thread(target=process_audio, daemon=True)
-        process_thread.start()
+        cv2.imshow('Camera', frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            internal_stop_event.set()
+            break
 
-        # Don't stop the audio threads, just pause processing
-        pause_audio_processing()
+    # Cleanup
+    stop_event.set()
+    audio_thread.join()
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
+    cap.release()
+    cv2.destroyAllWindows()
+
+    # Start audio recording thread if not already running
+    record_thread = threading.Thread(target=record_audio, daemon=True)
+    record_thread.start()
+    
+    # Start audio processing thread if not already running
+    process_thread = threading.Thread(target=process_audio, daemon=True)
+    process_thread.start()
+
+    # Don't stop the audio threads, just pause processing
+    pause_audio_processing()
 
 if __name__ == "__main__":
     objek_deteksi()

@@ -90,6 +90,8 @@ def main(device_index):
 
     def record_audio():
         """Record audio and trigger video recording when sound is detected."""
+
+        
         nonlocal recording
         audio_frames = []
         video_frames = []

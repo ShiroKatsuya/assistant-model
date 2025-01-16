@@ -9,6 +9,7 @@ from moviepy import VideoFileClip, AudioFileClip
 import os
 from queue import Queue
 from datetime import datetime
+from  video_understands import app
 
 from recording import (
     resume_audio_processing, 
@@ -18,7 +19,7 @@ from recording import (
     audio_queue
 )
 
-def objek_deteksi(stop_event=None):
+def objek_deteksi(stop_event):
     # Audio recording settings
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
@@ -64,7 +65,6 @@ def objek_deteksi(stop_event=None):
     # Shared variables
     recording = False
     frames_queue = Queue()
-    stop_event = threading.Event()
 
     def detect_sound(data):
         """Detect if there is sound in audio data."""
@@ -72,7 +72,6 @@ def objek_deteksi(stop_event=None):
         return np.max(np.abs(audio_data)) > SILENCE_THRESHOLD
 
     frames = []  # For audio frames
-    internal_stop_event = threading.Event() if stop_event is None else stop_event
 
     def save_recording(audio_frames, video_frames, start_time):
         """Save the recorded audio and video."""
@@ -110,15 +109,20 @@ def objek_deteksi(stop_event=None):
         os.remove(temp_video)
         os.remove(temp_audio)
         print(f"Saved recording to {output_filename}")
+        
+        # Run app() and wait for it to complete
+        print("Processing video with app()...")
+        app()
+        print("Video processing complete")
     
-    def record_audio():
+    def local_record_audio():
         """Record audio and trigger video recording when sound is detected."""
         nonlocal recording
         audio_frames = []
         video_frames = []
         last_sound_time = time.time()
         
-        while not internal_stop_event.is_set():
+        while not stop_event.is_set():
             data = stream.read(CHUNK)
             has_sound = detect_sound(data)
             
@@ -148,50 +152,58 @@ def objek_deteksi(stop_event=None):
                         save_recording(audio_frames, video_frames, start_time)
                     recording = False
 
-    print("Starting camera - Press 'q' to quit")
+    print("Starting camera - Press 'q' to quit or close the window")
     
     # Start audio recording thread
-    audio_thread = threading.Thread(target=record_audio)
+    audio_thread = threading.Thread(target=local_record_audio)
     audio_thread.start()
     
-    # Main video capture loop
-    while not internal_stop_event.is_set():
-        ret, frame = cap.read()
-        if not ret:
-            print("Error reading frame from camera")
-            break
+    try:
+        # Main video capture loop
+        while not stop_event.is_set():
+            ret, frame = cap.read()
+            if not ret:
+                print("Error reading frame from camera")
+                break
+                
+            if recording:
+                frames_queue.put(frame.copy())
+                
+            # Display recording status
+            status = "Recording" if recording else "Waiting for sound"
+            cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             
-        if recording:
-            frames_queue.put(frame.copy())
+            cv2.imshow('Camera', frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q') or cv2.getWindowProperty('Camera', cv2.WND_PROP_VISIBLE) < 1:
+                stop_event.set()
+                break
+
+    finally:
+        # Cleanup camera resources
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
+        cap.release()
+        cv2.destroyAllWindows()
+        # Resume audio processing
+        if resume_audio_processing():
+            print("Audio processing resumed")
+            # Start audio recording thread if not already running
+            record_thread = threading.Thread(target=record_audio, daemon=True)
+            record_thread.start()
             
-        # Display recording status
-        status = "Recording" if recording else "Waiting for sound"
-        cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            # Start audio processing thread if not already running
+            process_thread = threading.Thread(target=process_audio, daemon=True)
+            process_thread.start()
+        else:
+            print("Audio processing not resumed")
+
+
+
+        # Resume audio processing
         
-        cv2.imshow('Camera', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            internal_stop_event.set()
-            break
 
-    # Cleanup
-    stop_event.set()
-    audio_thread.join()
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-    cap.release()
-    cv2.destroyAllWindows()
-
-    # Start audio recording thread if not already running
-    record_thread = threading.Thread(target=record_audio, daemon=True)
-    record_thread.start()
-    
-    # Start audio processing thread if not already running
-    process_thread = threading.Thread(target=process_audio, daemon=True)
-    process_thread.start()
-
-    # Don't stop the audio threads, just pause processing
-    pause_audio_processing()
 
 if __name__ == "__main__":
     objek_deteksi()

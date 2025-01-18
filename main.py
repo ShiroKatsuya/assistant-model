@@ -15,9 +15,10 @@ from monsterapi import client
 import threading
 from Ai_Memory_Long_Term import main as ai_memory_long_term
 from internet_access import main as internet_access
-from main_ui import embed_app
+# from main_ui import embed_app
 from youtube_search import main as youtube_search
 from langchain_core.messages import get_buffer_string, HumanMessage, SystemMessage, AIMessage
+from desktop_understands import main as desktop_understands
 os.environ['MONSTER_API_KEY']
 monster_client = client()
 from o_detection_with_audio import objek_deteksi
@@ -35,9 +36,9 @@ model_id = "gemini-2.0-flash-exp"
 
 def main():
     global detection_thread
-    embed_app()
-    audio_thread_intro.start()
-    audio_thread_intro.join()
+    # embed_app()
+    # audio_thread_intro.start()
+    # audio_thread_intro.join()
     try:
         for translate in process_audio():
             if any(keyword in translate.lower() for keyword in ["create image", "create images", "buatkan saya gambar", "gambar", "image", "buatkan gambar","picture","pictures","buatkan gambar","photo","photos","buatkan gambar","Draw","draw","Make"]):
@@ -211,7 +212,39 @@ def main():
                 except Exception as e:
                     print(f"Unexpected error during object detection: {str(e)}")
                     voice("Sorry, something went wrong during object detection")
-            
+            elif any(keyword in translate.lower() for keyword in ["stop desktop","hentikan desktop","stop desktop","stop desktop"]):
+                try:
+                    with detection_lock:
+                        if detection_thread and detection_thread.is_alive():
+                            print("Menghentikan desktop...")
+                            voice("Menghentikan desktop...")
+                            detection_stop_event.set()
+                            detection_thread.join()
+                            detection_thread = None  # Clear the thread reference
+                            print("Desktop dihentikan.")
+                        else:
+                            print("Desktop tidak berjalan.")
+                            voice("Desktop tidak berjalan.")
+                except Exception as e:
+                    print(f"Error saat menghentikan desktop: {e}")
+                    voice("Sorry, something went wrong while stopping the desktop")
+                finally:
+                    resume_audio_processing()
+            elif any(keyword in translate.lower() for keyword in ["open desktop","buka desktop","desktop","buka desktop"]):
+                try:
+                    with detection_lock:
+                        if detection_thread and detection_thread.is_alive():
+                            print("Desktop sudah berjalan.")
+                        else:
+                            print("Memulai desktop...")
+                            voice("Memulai desktop.")
+                            detection_stop_event.clear()
+                            detection_thread = threading.Thread(target=desktop_understands, args=(detection_stop_event,))
+                            detection_thread.daemon = True  # Make thread daemon so it exits when main thread exits
+                            detection_thread.start()
+                except Exception as e:
+                    print(f"Unexpected error during desktop: {str(e)}")
+                    voice("Sorry, something went wrong during desktop")
             else:
                 try:
                     pause_audio_processing()

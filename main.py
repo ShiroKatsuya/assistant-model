@@ -22,6 +22,9 @@ from desktop_understands import main as desktop_understands
 os.environ['MONSTER_API_KEY']
 monster_client = client()
 from o_detection_with_audio import objek_deteksi
+from google.genai.types import (GenerateContentConfig
+)
+
 
 # from o_detection_transformers import objek_deteksi
 
@@ -34,6 +37,15 @@ conversation_history = []
 client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
 model_id = "gemini-2.0-flash-exp"
 
+generation_config = GenerateContentConfig(
+        temperature=0,
+        top_p=0.95,
+        top_k=20,
+        candidate_count=1,
+        max_output_tokens=500,
+        stop_sequences=["STOP!"],
+)
+
 def main():
     global detection_thread
     # embed_app()
@@ -42,7 +54,7 @@ def main():
     try:
         for translate in process_audio():
             if any(keyword in translate.lower() for keyword in ["create image", "create images", "buatkan saya gambar", "gambar", "image", "buatkan gambar","picture","pictures","buatkan gambar","photo","photos","buatkan gambar","Draw","draw","Make"]):
-             
+                context= translate
                 pause_audio_processing()
                 image = None
 
@@ -67,9 +79,10 @@ def main():
                     image.show()
               
                     sentiment = image
+
+                    # print(translate)
                     
-         
-                    response = client.models.generate_content(model=model_id, contents=[sentiment, "Briefly explain the meaning of the image and provide theoretical explanations or in-depth information related to what is depicted in the image."])
+                    response = client.models.generate_content(model=model_id, config=generation_config,contents=[sentiment, f"Discuss the context: {context}, briefly with a focus on the information conveyed by the image.Briefly explain the meaning of the image and provide theoretical explanations or in-depth information related to what is depicted in the image."])
                     cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
                     print(cleaned_response)
                     voice(cleaned_response)

@@ -5,7 +5,7 @@ def check_audio_device(CHANNELS):
     for i in range(p.get_device_count()):
         print("\n\n Index " + str(i) + " :\n")
         dev = p.get_device_info_by_index(i)
-        print(dev)  # Print device info for debugging
+        print(dev)  
         if dev.get('maxInputChannels') >= CHANNELS:
             return dev.get('name')
     return None

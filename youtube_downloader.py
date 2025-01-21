@@ -8,7 +8,7 @@ def download_youtube_audio(url):
     filename = f"{yt.title}.mp3"  # Use video title as filename
     return audio_stream.download(filename=filename)
 
-download_youtube_audio("https://www.youtube.com/watch?v=iR964FRowgA&list=RDiR964FRowgA&start_radio=1")
+download_youtube_audio("https://youtube.com/shorts/xhJT0KD1p1o?si=KmULEdNx4NBMQGTG")
 
 
 

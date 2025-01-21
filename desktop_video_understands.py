@@ -18,6 +18,8 @@ MEDIA_FOLDER = 'medias'
 client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
 model_id = "gemini-2.0-flash-exp"
 
+_insights_cache = {}
+
 def initialize():
     """Initialize environment and API key only when needed"""
     if not os.path.exists(MEDIA_FOLDER):
@@ -98,6 +100,15 @@ def extract_audio_text(video_path):
     except Exception as e:
         print(f"Error processing audio: {str(e)}")
         return None
+
+# Initialize cache as a module-level dictionary
+# Delete previous cache
+if '_insights_cache' in globals():
+    del _insights_cache
+
+# Create new cache
+_insights_cache = {}
+
 def get_insights(video_path):
     # generation_config = GenerateContentConfig(
     #     temperature=0.2,
@@ -108,8 +119,13 @@ def get_insights(video_path):
     #     stop_sequences=["STOP!"],
     # )
     """Extract insights from the video using local processing and Gemini Flash."""
-    print(f"Processing video: {video_path}")
+    # Don't use cache for desktop_recording.mp4
+    if video_path in _insights_cache and "desktop_recording.mp4" not in video_path:
+        print(f"Using cached results for {video_path}")
+        return _insights_cache[video_path]
 
+    print(f"Processing video: {video_path}")
+    
     print("Extracting frames...")
     frames = extract_frames(video_path)
     print(f"Extracted {len(frames)} key frames")
@@ -123,26 +139,37 @@ def get_insights(video_path):
     print("Audio transcription and translation complete!")
     
     prompt = f"""You are an assistant specializing in screen-sharing support. Your role is to:
-                Answer Only Focus on the Topic Discussed
-    
 
+                1. Do not code if not instructed
+                2. Return ONLY the code within triple backticks with appropriate language identifier
+                3. Ignore any unrelated windows or notifications
+                4. Answer Only Focus on the Topic Discussed
                 Important: Ignore and do not comment on any unrelated windows or messages, such as "Screen Recorder" notifications or similar prompts.
-        
-                             
-                                        
-
                 Audio transcription (English): {audio_text}
                 """
-
-
 
     print("Analyzing video content...")
     response = client.models.generate_content(model=model_id,
                                     contents=[prompt, *frames],
                                     )
     print(f'Analysis complete!')
-    voice(response.text)
+    
+    if response.text:
+        if "```" in response.text:
+            voice("Code Program Berhasil Dibuat")
+        else:
+            voice(response.text)
     print(response.text)
+    
+    # Run python_macro.py if response contains code
+    if response.text and "```" in response.text:
+        import python_macro
+        python_macro.process_code(response.text)
+        
+    # Only cache results for non-desktop_recording videos
+    if "desktop_recording.mp4" not in video_path:
+        _insights_cache[video_path] = response.text
+    return response.text
 
 def app():
     """Main function that only runs when explicitly called"""

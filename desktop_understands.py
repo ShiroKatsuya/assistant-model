@@ -12,13 +12,13 @@ import os
 import tkinter as tk
 from tkinter import ttk
 from desktop_video_understands import app
-from recording import (
-    resume_audio_processing, 
-    pause_audio_processing, 
-    record_audio, 
-    process_audio,
-    audio_queue
-)
+# from recording import (
+#     resume_audio_processing, 
+#     pause_audio_processing, 
+#     record_audio, 
+#     process_audio,
+#     audio_queue
+# )
 
 # @click.command()
 # @click.option('--device_index', default=1, type=int, help="Device index for recording audio")
@@ -51,16 +51,17 @@ def main():
     stop_event = threading.Event()  # Initialize stop event
     recording_count = 0  # Counter for recordings
 
-    # Create Tkinter window
+
     root = tk.Tk()
     root.title("Screen Recorder")
     root.geometry("300x100")
+    root.attributes('-topmost', True)  
     
-    # Create label for status
+
     status_label = ttk.Label(root, text="Waiting for sound...", font=("Arial", 12))
     status_label.pack(pady=20)
 
-    # Create quit button
+
     quit_button = ttk.Button(root, text="Quit", command=lambda: stop_event.set())
     quit_button.pack()
 
@@ -195,18 +196,18 @@ def main():
         stream.close()
         audio.terminate()
         
-        # Resume audio processing directly instead of scheduling
-        if resume_audio_processing():
-            print("Audio processing resumed")
-            # Start audio recording thread if not already running
-            record_thread = threading.Thread(target=record_audio, daemon=True)
-            record_thread.start()
+        # # Resume audio processing directly instead of scheduling
+        # if resume_audio_processing():
+        #     print("Audio processing resumed")
+        #     # Start audio recording thread if not already running
+        #     record_thread = threading.Thread(target=record_audio, daemon=True)
+        #     record_thread.start()
             
-            # Start audio processing thread if not already running
-            process_thread = threading.Thread(target=process_audio, daemon=True)
-            process_thread.start()
-        else:
-            print("Audio processing not resumed")
+        #     # Start audio processing thread if not already running
+        #     process_thread = threading.Thread(target=process_audio, daemon=True)
+        #     process_thread.start()
+        # else:
+        #     print("Audio processing not resumed")
 
 
 if __name__ == "__main__":

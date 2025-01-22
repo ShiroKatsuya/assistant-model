@@ -26,16 +26,9 @@ from google.genai.types import (GenerateContentConfig
 
 
 import ollama
-model_name = "deepseek-r1:1.5b"
-
-
-
-
+model_name = "C.A.L.I.S.T.A:latest"
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
-
 
 class State(MessagesState):
     recall_memories: List[str]
@@ -49,10 +42,9 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
     tavily_api_key = os.getenv("TAVILY_API_KEY")
     Client.api_key = tavily_api_key  
 
-
     def embed_text(text: str) -> List[float]:
-        import google.generativeai as genai
         """Generate embeddings using Gemini model."""
+        import google.generativeai as genai
         try:
             embedding = genai.embed_content(
                 model="models/embedding-001",
@@ -91,10 +83,12 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             
             # Prepare batch of memory embeddings, handle missing embeddings gracefully
             memory_embeddings = []
+            valid_memories = []
             for memory in memories:
                 try:
                     embedding = memory['metadata']['embedding']
                     memory_embeddings.append(embedding)
+                    valid_memories.append(memory)
                 except KeyError:
                     print(f"Warning: Missing embedding for memory ID {memory['id']}")
                     continue  # Skip this memory
@@ -112,7 +106,8 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             )
             
             relevant_memories = [
-                memory for memory, similarity in zip(memories, similarities) if similarity > threshold
+                memory for memory, similarity in zip(valid_memories, similarities) 
+                if similarity > threshold
             ]
             
             return relevant_memories
@@ -226,15 +221,12 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
     8. Recognize and acknowledge changes in the user's situation or perspectives over time
     9. Leverage memories to provide personalized examples and analogies
     10. Recall past challenges or successes to inform current problem-solving
-
-    ## Recall Memories
+    
     Recall memories are contextually retrieved based on the current conversation:
     {recall_memories}
 
-    ## Instructions
+    Instructions
     Engage with the user naturally while ensuring ALL important information is saved using save_recall_memory. Store complete context and details, not just basic facts. Cross-reference memories for consistency and use them to provide personalized responses."""
-
-
 
     tokenizer = tiktoken.get_encoding("cl100k_base")
 
@@ -267,12 +259,23 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
         try:
             # Generate response using Ollama with Deepseek model
+            formatted_messages = []
+            for msg in messages:
+                if isinstance(msg, SystemMessage):
+                    formatted_messages.append({"role": "system", "content": msg.content})
+                elif isinstance(msg, HumanMessage):
+                    formatted_messages.append({"role": "user", "content": msg.content})
+                elif isinstance(msg, AIMessage):
+                    formatted_messages.append({"role": "assistant", "content": msg.content})
+            print(formatted_messages)
+            
             response = ollama.chat(
                 model=model_name,
-                messages=[{"role": "user", "content": msg.content} for msg in messages]
+                messages=formatted_messages,
+  
             )
-            
-            if response and response.get('message'):
+
+            if response and 'message' in response:
                 # Save AI response as well
                 save_recall_memory.invoke(
                     f"Assistant response: {response['message']['content']}",
@@ -280,15 +283,18 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
                 )
                 return {
                     "messages": state["messages"] + [AIMessage(content=response['message']['content'])],
+                    "recall_memories": state.get("recall_memories", [])  # Preserve recall memories
                 }
             else:
                 return {
-                    "messages": state["messages"] + [AIMessage(content="Maaf, saya tidak dapat menghasilkan response.")],
+                    "messages": state["messages"] + [AIMessage(content="Sorry, I could not generate a response.")],
+                    "recall_memories": state.get("recall_memories", [])
                 }
         except Exception as e:
             print(f"Error generating response: {e}")
             return {
-                "messages": state["messages"] + [AIMessage(content="Terjadi kesalahan saat menghasilkan response.")],
+                "messages": state["messages"] + [AIMessage(content="An error occurred while generating a response.")],
+                "recall_memories": state.get("recall_memories", [])
             }
 
     def load_memories(state: State, config: RunnableConfig) -> State:
@@ -342,7 +348,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
     # Create initial state with just the current message
     messages = [HumanMessage(content=initial_message)] if initial_message else []
-    current_state = {"messages": messages}
+    current_state = {"messages": messages, "recall_memories": []}
     
     # Process with graph
     responses = []
@@ -353,7 +359,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
 if __name__ == "__main__":
     main(
-        initial_message="My name is Rizky Sulaeman A Programmer Who Creates AI That Will Replace All Human Work",
-        second_message="what is my name? and what is my job?",
+        initial_message="",
+        second_message="",
         full_history=[]
     )

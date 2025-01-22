@@ -1,48 +1,98 @@
-from typing import NamedTuple
-import utils
-from reasoners import WorldModel, LanguageModel
-from world_model import BWState, BWAction
-from reasoners import SearchConfig, LanguageModel
-import copy
+import google.generativeai as genai
+import os
+from langchain.agents import AgentExecutor
+from langchain_community.tools import WikipediaQueryRun
+from langchain_community.utilities.wikipedia import WikipediaAPIWrapper
+from langchain_community.tools.tavily_search import TavilySearchResults
+from google.generativeai.types import GenerationConfig
+from langchain.prompts import ChatPromptTemplate
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+from typing import Any, List, Optional
+from pydantic import BaseModel
+from langchain_core.outputs import ChatGeneration, ChatResult
 
-BWState = str
-BWAction = str
+GEMINI_KEY = os.getenv("GEMINI_KEY", None) 
+genai.configure(api_key=GEMINI_KEY)
 
-class BlocksWorldModel(WorldModel[BWState, BWAction]):
-    def __init__(self,
-                 base_model: LanguageModel,
-                 prompt: dict) -> None:
-        super().__init__()
-        self.base_model = base_model
-        self.prompt = prompt
 
-    def init_state(self) -> BWState:
-        # extract the statement from a given problem
-        # e.g., "the red block is clear, the blue block is clear..."
-        return BWState(utils.extract_init_state(self.example)) 
+model = genai.GenerativeModel('gemini-1.5-flash')
+config = GenerationConfig(
+    temperature=0
+)
 
-    def step(self, state: BWState, action: BWAction) -> tuple[BWState, dict]:
-        # call the LLM to predict the state transition
-        state = copy.deepcopy(state)
-        # load the prompt for the LLM to predict the next state
-        # e.g. "... I have that <state>, if I <action>, then ..."
-        world_update_prompt = self.prompt["update"].replace("<state>", state).replace("<action>", action)
-        world_output = self.base_model.generate([world_update_prompt],
-                                    eos_token_id="\n", hide_input=True, temperature=0).text[0].strip()
-        new_state = utils.process_new_state(world_output)
-        # till now, we have the new state after the action
-        # the following part is to speed up the reward calculation
 
-        # we want to check the portion of the satisfied subgoals, and use it as a part of the reward
-        # since we have predicted the new state already, we can just check it here at convenience
-        goal_reached = utils.goal_check(utils.extract_goals(self.example, new_state))
-        # return the new state and the additional dictionary (to be passed to the reward function)
-        return new_state, {"goal_reached": goal_reached}
+wikipedia = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper())
+tavily = TavilySearchResults()
+tools = [wikipedia, tavily]
 
-    def is_terminal(self, state: BWState) -> bool:
-        # define the condition the terminal state to stop the search
-        # e.g., all the subgoals are met
-        if utils.goal_check(utils.extract_goals(self.example), state.blocks_state) == 1:
-            return True
-        return False
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful AI assistant that uses tools to find information and answer questions."),
+    ("human", "{input}"),
+    ("human", "This is the result of using tools to help you: {agent_scratchpad}")
+])
+
+
+class GeminiChatModel(BaseChatModel, BaseModel):
+    model: Any
+    verbose: bool = True
+    callbacks: Optional[Any] = None
+    tags: Optional[List[str]] = None
     
+    class Config:
+        arbitrary_types_allowed = True
+    
+    def __init__(self, model: Any, **kwargs):
+        super().__init__(model=model, **kwargs)
+        
+    def _generate(
+        self,
+        messages: List[Any],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        prompt = ""
+        for message in messages:
+            if isinstance(message, SystemMessage):
+                prompt += f"System: {message.content}\n"
+            elif isinstance(message, HumanMessage):
+                prompt += f"Human: {message.content}\n"
+            elif isinstance(message, AIMessage):
+                prompt += f"Assistant: {message.content}\n"
+        
+        response = self.model.generate_content(prompt, generation_config=config)
+        message = AIMessage(content=response.text)
+        generation = ChatGeneration(message=message)
+        return ChatResult(generations=[generation])
+
+    @property
+    def _llm_type(self) -> str:
+        return "gemini"
+
+    @property
+    def _identifying_params(self) -> dict:
+        return {"model": "gemini"}
+
+    @property
+    def _input_keys(self) -> List[str]:
+        return ["input"]
+
+langchain_model = GeminiChatModel(model=model)
+
+from langchain.agents import create_openai_tools_agent
+agent = create_openai_tools_agent(langchain_model, tools, prompt)
+
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+
+print("Response without using tools:")
+response = model.generate_content("Where Is Indonesia?")
+print(response.text)
+print("\n" + "="*50 + "\n")
+
+
+print("Response using tools through agent:")
+print(agent_executor.invoke({"input": "Where Is Indonesia?"}))

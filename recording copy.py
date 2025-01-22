@@ -10,9 +10,6 @@ import subprocess
 import os
 import random
 
-# Duration of silence in seconds before stopping recording
-SILENCE_DURATION = 2.0
-
 def get_random_file_recording():
     intro_files_recording = []
     if os.path.exists('All_Intro_Recording'):
@@ -62,6 +59,7 @@ print(channels)
 fs = 44100  
 seconds = 5
 filename = "output.wav"
+SILENCE_DURATION = 2.0  # Durasi keheningan dalam detik sebelum berhenti merekam
 
 
 audio_playing = threading.Event()
@@ -162,7 +160,7 @@ def record_audio():
                 chunks_recorded = 0
                 silence_chunks = 0
                 min_chunks = int(fs / chunk * seconds)  
-                silence_threshold = int(SILENCE_DURATION * fs / chunk)
+                silence_threshold = int(SILENCE_DURATION * fs / chunk)  # Jumlah chunk untuk durasi keheningan
                 
                 while True:
                     data = stream.read(chunk)
@@ -177,7 +175,7 @@ def record_audio():
                             silence_chunks += 1
                             
 
-                        if silence_chunks >= silence_threshold:
+                        if silence_chunks >= silence_threshold:  # Menggunakan silence_threshold
                             break
                     
                 audio_queue.put(b''.join(frames))

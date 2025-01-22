@@ -25,17 +25,18 @@ from google.genai.types import (GenerateContentConfig
 
 
 
-import ollama
-model_name = "deepseek-r1:1.5b"
-
-
-
-
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-
+gemini_config = GenerateContentConfig(
+    temperature=0.2,
+    top_p=0.95,
+    top_k=20,
+    candidate_count=1,
+    seed=5,
+    max_output_tokens=500,
+    stop_sequences=["STOP!"],
+)
 
 class State(MessagesState):
     recall_memories: List[str]
@@ -266,20 +267,19 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             )
 
         try:
-            # Generate response using Ollama with Deepseek model
-            response = ollama.chat(
-                model=model_name,
-                messages=[{"role": "user", "content": msg.content} for msg in messages]
+            prediction = client.models.generate_content(
+                model=model_id,
+                contents=[msg.content for msg in messages],
+                config=gemini_config
             )
-            
-            if response and response.get('message'):
+            if prediction.text:
                 # Save AI response as well
                 save_recall_memory.invoke(
-                    f"Assistant response: {response['message']['content']}",
+                    f"Assistant response: {prediction.text}",
                     config={"configurable": {"user_id": "1"}}
                 )
                 return {
-                    "messages": state["messages"] + [AIMessage(content=response['message']['content'])],
+                    "messages": state["messages"] + [AIMessage(content=prediction.text)],
                 }
             else:
                 return {

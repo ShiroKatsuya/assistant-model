@@ -120,25 +120,27 @@ def objek_deteksi(stop_event):
     def local_record_audio():
         """Record audio and trigger video recording when sound is detected."""
         nonlocal recording
-        audio_frames = []
-        video_frames = []
-        last_sound_time = time.time()
-        
         while not stop_event.is_set():
             data = stream.read(CHUNK)
             has_sound = detect_sound(data)
             
             if has_sound:
+                # Update the last sound detection time so we know how long silence lasts
                 last_sound_time = time.time()
                 if not recording:
                     recording = True
                     print("Sound detected - Starting recording")
+                    # Clear out any previously accumulated audio or video data
                     audio_frames = []
                     video_frames = []
-                    start_time = time.time()
-                
+                    # (Optional) Clear any leftover frames in the queue:
+                    while not frames_queue.empty():
+                        frames_queue.get()
+                    start_time = time.time()  # reset start_time for this new recording
+                    
+                # Append current audio data
                 audio_frames.append(data)
-                # Get accumulated video frames
+                # Get any accumulated video frames from the shared queue
                 while not frames_queue.empty():
                     video_frames.append(frames_queue.get())
                 
@@ -147,11 +149,12 @@ def objek_deteksi(stop_event):
                 while not frames_queue.empty():
                     video_frames.append(frames_queue.get())
                 
-                # Check if silence duration exceeded
+                # Check if the duration of silence exceeds the threshold
                 if time.time() - last_sound_time > SILENCE_DURATION:
                     print("Silence detected - Stopping recording")
                     if audio_frames and video_frames:
                         save_recording(audio_frames, video_frames, start_time)
+                    # After saving, set recording to False so that the next time we detect sound we get a fresh recording context.
                     recording = False
 
     print("Starting camera - Press 'q' to quit or close the window")

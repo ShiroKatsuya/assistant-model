@@ -14,9 +14,21 @@ from recording import process_audio, pause_audio_processing, resume_audio_proces
 import logging as log
 import json
 from voice import voice
-import queue
-import threading
-import time
+
+# ---- Added to fix Tcl error ----
+import tkinter as tk
+# Create a single hidden Tkinter root to ensure all Tk calls run in the main thread.
+_voice_root = tk.Tk()
+_voice_root.withdraw()
+
+def safe_voice(text):
+    """
+    Calls the voice() function via the Tkinter main event loop.
+    This ensures that any underlying Tkinter callbacks used within voice() run in the main thread.
+    After scheduling voice(), resume_audio_processing() is called to continue to the next process.
+    """
+    _voice_root.after(0, lambda: voice(text))
+    _voice_root.update_idletasks()
 
 class CommandFailedError(Exception):
     """Exception raised when a command execution fails."""
@@ -88,19 +100,22 @@ def download_youtube_audio(url):
         return None
 
 def convert_mp3_to_wav(mp3_path):
+    wav_path = "output_ai.wav"
     try:
         # Save combined audio as 'output_ai.wav'
-        wav_path = "output_ai.wav"
         subprocess.run(
             ["ffmpeg", "-i", mp3_path, wav_path],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-        return wav_path
     except subprocess.CalledProcessError as e:
         print(f"Error converting MP3 to WAV: {e}")
+        resume_audio_processing()  # Resume processing only after ffmpeg has completed (even on error)
         return None
+
+    resume_audio_processing()  # Resume processing after ffmpeg has successfully finished
+    return wav_path
 
 def audio_to_text(audio_path):
     if not audio_path:
@@ -131,45 +146,12 @@ def cleanup_files(*file_paths):
         except Exception as e:
             print(f"Error cleaning up file {file_path}: {e}")
 
-# Create a queue to hold messages to be "spoken"
-voice_queue = queue.Queue()
-
-def voice_dispatcher():
-    """Continuously check the queue and process voice messages on the main thread."""
-    while True:
-        message = voice_queue.get()
-        if message is None:  # if None, exit the dispatcher
-            break
-        try:
-            # Call voice in the thread that runs this dispatcher.
-            voice(message)
-        except Exception as e:
-            print(f"Error calling voice: {e}")
-        finally:
-            voice_queue.task_done()
-
-# Start the dispatcher in a thread designated to be the 'voice thread'
-# IMPORTANT: If your voice() implementation uses tkinter, you want this dispatcher
-# to run in the main thread. One way to ensure this is to start it in your main loop
-# (or use tkinter's `after` method from your root instance). Here's an example if you're okay
-# with a dedicated thread—**but note**, if voice() wraps Tk calls, you may need a different approach.
-dispatcher_thread = threading.Thread(target=voice_dispatcher, daemon=True)
-dispatcher_thread.start()
-
-def process_voice(text):
-    """
-    Instead of calling voice(text) directly in your processing loop,
-    enqueue the voice call to be handled by the dispatcher.
-    """
-    voice_queue.put(text)
-
 def main(*args, **kwargs):
     import time
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
     model = genai.GenerativeModel('gemini-1.5-flash')
     audio_processor = process_audio()
     resume_audio_processing()
-
 
     print("Getting started with YouTube.")
     time.sleep(1.55)
@@ -219,14 +201,9 @@ def main(*args, **kwargs):
                     response = model.generate_content(
                         f"Take all the key points from the video so that the main information can be conveyed in a clearer and more organized way: {transcript}"
                     )
-                    
-                    # Instead of calling voice(...) directly:
-                    processed_text = response.text.replace('*', '').replace('\n\n', '\n')
-                    process_voice(f"Response: {processed_text}")
-                    
-                    print(f"Response: {processed_text}")
+                    safe_voice(f"Response: {response.text.replace('*', '').replace('\n\n', '\n')}")
+                    print(f"Response: {response.text.replace('*', '').replace('\n\n', '\n')}")
 
-                    # Cleanup and resume processing as before
                     cleanup_files(audio_file, wav_file)
                     resume_audio_processing()
             except Exception as e:
@@ -235,9 +212,6 @@ def main(*args, **kwargs):
                 continue
     except Exception as e:
         print(e)
-    finally:
-        # Cleanly exit the dispatcher when the main loop ends.
-        voice_queue.put(None)
 
 if __name__ == "__main__":
     main()

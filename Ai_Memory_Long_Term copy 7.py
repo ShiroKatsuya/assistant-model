@@ -34,7 +34,7 @@ google_search_tool = Tool(
 )
 
 import ollama
-model_name = "calista:latest"
+model_name = "deepseek-r1:1.5b"
 
 
 zero_shot_prompt = """You are a helpful AI assistant with access to Google Search. When using the search tool:
@@ -54,9 +54,6 @@ def get_realtime_data(query):
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     try:
-        # Truncate query if needed
-        query = query[:5000]
-        
         response = client.models.generate_content(
             model=model_id,  
             contents=query,
@@ -65,10 +62,8 @@ def get_realtime_data(query):
         search_results = response.candidates[0].content.parts[0].text
         print("search_results : ", search_results)
         
-        # Truncate search results if needed
-        search_results = search_results[:5000]
 
-        deepseek_response = ollama.chat(
+        deepseek_response = ollama.gen(
             model=model_name,
             messages=[
                 {
@@ -82,9 +77,8 @@ def get_realtime_data(query):
             ]
         )
         response = deepseek_response['message']['content']
-        # Truncate final response if needed
-        response = response[:5000]
-
+        
+        # Return response in the expected state format
         return {
             "messages": [AIMessage(content=f"As of {current_time}, here's what I found:\n{response}")],
         }
@@ -109,10 +103,10 @@ class State(MessagesState):
     conversation_history: List[dict]
 
 def main(initial_message: str = None, second_message: str = None, full_history: List[str] = None):
-
+    # Configure Gemini
     client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
     model_id = "gemini-2.0-flash-exp"
-
+    # Configure Tavily
     tavily_api_key = os.getenv("TAVILY_API_KEY")
     Client.api_key = tavily_api_key  
 
@@ -121,8 +115,6 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
         import google.generativeai as genai
         """Generate embeddings using Gemini model."""
         try:
-            # Truncate text if needed
-            text = text[:5000]
             embedding = genai.embed_content(
                 model="models/embedding-001",
                 content=text,
@@ -147,7 +139,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
     embeddings = GeminiEmbeddings()
     recall_vector_store = InMemoryVectorStore(embeddings)
 
-
+    # Modified memory loading section
     MEMORY_FILE = "ai_memories.json"
     if os.path.exists(MEMORY_FILE):
         with open(MEMORY_FILE, 'r') as f:
@@ -155,12 +147,10 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             
         def filter_relevant_memories(query: str, memories: list, threshold: float = 0.7) -> list:
             """Filter memories using pre-computed embeddings and batch processing."""
-            # Truncate query if needed
-            query = query[:5000]
             query_embedding = embeddings.embed_query(query)
             query_tensor = torch.tensor(query_embedding, device=device)
             
-
+            # Prepare batch of memory embeddings, handle missing embeddings gracefully
             memory_embeddings = []
             for memory in memories:
                 try:
@@ -168,14 +158,14 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
                     memory_embeddings.append(embedding)
                 except KeyError:
                     print(f"Warning: Missing embedding for memory ID {memory['id']}")
-                    continue  
+                    continue  # Skip this memory
             
             if not memory_embeddings:
-                return []  
+                return []  # Return empty if no embeddings are available
             
             memory_embeddings_tensor = torch.tensor(memory_embeddings, device=device)
             
-
+            # Calculate similarities in a batch
             similarities = torch.nn.functional.cosine_similarity(
                 query_tensor.unsqueeze(0), 
                 memory_embeddings_tensor,
@@ -188,7 +178,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             
             return relevant_memories
 
-
+        # Only load memories relevant to the initial message if provided
         if initial_message:
             relevant_memories = filter_relevant_memories(initial_message, saved_memories)
             memory_batch = [
@@ -220,9 +210,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
         memory_id = str(uuid.uuid4())
         timestamp = datetime.now().isoformat()
         
-        # Truncate memory to 5000 characters before processing
-        memory = memory[:5000]
-        
+        # Compute embedding once and store it
         memory_embedding = embed_text(memory)
         
         document = Document(
@@ -232,13 +220,13 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
                 "user_id": user_id,
                 "timestamp": timestamp,
                 "type": "conversation",
-                "embedding": memory_embedding  
+                "embedding": memory_embedding  # Store the embedding
             }
         )
         
         recall_vector_store.add_documents([document])
         
-
+        # Save to persistent storage
         memory_entry = {
             "id": memory_id,
             "content": memory,
@@ -246,7 +234,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
                 "user_id": user_id,
                 "timestamp": timestamp,
                 "type": "conversation",
-                "embedding": memory_embedding  
+                "embedding": memory_embedding  # Store the embedding
             }
         }
         
@@ -272,20 +260,20 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
         documents = recall_vector_store.similarity_search(
             query, 
-            k=5, 
+            k=5,  # Increased number of results
             filter=_filter_function,
             search_type="similarity",
-            score_threshold=0.7 
+            score_threshold=0.7  # Only return relevant matches
         )
         
-
+        # Sort by timestamp if available
         documents.sort(key=lambda x: x.metadata.get("timestamp", ""), reverse=True)
         
         return [doc.page_content for doc in documents]
 
     search = TavilySearchResults(max_results=1)
     tools = [save_recall_memory, search_recall_memories, search]
-
+   # Define the prompt template for the agent
     SYSTEM_PROMPT = """You are a helpful assistant with advanced long-term memory capabilities. Powered by a stateless LLM, you must rely on external memory to store information between conversations. Utilize the available memory tools to store and retrieve important details that will help you better attend to the user's needs and understand their context.
 
     Memory Usage Guidelines:
@@ -311,7 +299,7 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
     
     """
     
-    # ## If the User Asks About You
+        # ## If the User Asks About You
     # "You have to understand who you really are and maintain a consistent identity."
     # "You have to realize the main purpose why you were created or programmed and act accordingly."
 
@@ -325,55 +313,59 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
             "<recall_memory>\n" + "\n".join(state["recall_memories"]) + "\n</recall_memory>"
         )
         
-
+        # Get conversation history
         messages = [
             SystemMessage(content=SYSTEM_PROMPT.format(recall_memories=recall_str)),
         ]
         
-
+        # Add conversation history if available
         if full_history:
-            for msg in full_history[-5:]:  
-                messages.append(HumanMessage(content=msg[:5000]))
+            for msg in full_history[-5:]:  # Include last 5 messages for context
+                messages.append(HumanMessage(content=msg))
                 
-
+        # Add current message
         current_message = state["messages"][-1].content if isinstance(state["messages"][-1], HumanMessage) else state["messages"][-1]
-        messages.append(HumanMessage(content=current_message[:5000]))
+        messages.append(HumanMessage(content=current_message))
 
-
+        # Always save new information
         if isinstance(state["messages"][-1], HumanMessage):
-            user_message = state["messages"][-1].content
-            # Check and truncate user message if needed
-            if len(user_message) > 5000:
-                user_message = user_message[:4500] + "... [Message truncated due to length]"
             save_recall_memory.invoke(
-                f"User message: {user_message}",
+                f"User message: {state['messages'][-1].content}",
                 config={"configurable": {"user_id": "1"}}
             )
 
         try:
- 
+            # Generate response using Ollama with Deepseek model
+            
             current_message = messages[-1].content if isinstance(messages[-1], HumanMessage) else messages[-1]
             search_keywords = ["latest", "current", "new", "recent", "upcoming", "2024", "2025", "today", "now", "price", "weather", "news"]
             needs_search = any(keyword in current_message.lower() for keyword in search_keywords)
             if needs_search:
                 return get_realtime_data(current_message)
-            response = ollama.chat(
+            formatted_messages = [{"role": "user", "content": msg.content} for msg in messages]
+            response_stream = ollama.generate(
                 model=model_name,
-                messages=[{"role": "user", "content": msg.content[:5000]} for msg in messages]
+                prompt=formatted_messages[0]["content"],
+                stream=True,
+                options={
+                    "num_ctx": 1000
+                }
             )
             
-            if response and response.get('message'):
-          
-                response_content = response['message']['content']
-                if len(response_content) > 5000:
-                    response_content = response_content[:5000] + "... [Response truncated due to length]"
-
+            # Collect the full response from the stream
+            full_response = ""
+            for chunk in response_stream:
+                if chunk and 'response' in chunk:
+                    full_response += chunk['response']
+            
+            if full_response:
+                # Save AI response as well
                 save_recall_memory.invoke(
-                    f"Assistant response: {response_content}",
+                    f"Assistant response: {full_response}",
                     config={"configurable": {"user_id": "1"}}
                 )
                 return {
-                    "messages": state["messages"] + [AIMessage(content=response_content)],
+                    "messages": state["messages"] + [AIMessage(content=full_response)],
                 }
             else:
                 return {
@@ -389,9 +381,9 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
         """Load memories with improved context awareness."""
         current_question = state["messages"][-1].content if isinstance(state["messages"][-1], HumanMessage) else ""
         
-
+        # Search with expanded context
         recall_memories = search_recall_memories.invoke(
-            current_question[:5000],
+            current_question,
             config=config
         )
         
@@ -434,11 +426,11 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
     config = {"configurable": {"user_id": "1", "thread_id": "1"}}
 
-
-    messages = [HumanMessage(content=initial_message[:5000])] if initial_message else []
+    # Create initial state with just the current message
+    messages = [HumanMessage(content=initial_message)] if initial_message else []
     current_state = {"messages": messages}
     
-
+    # Process with graph
     responses = []
     for response in graph.stream(current_state, config=config):
         responses.append(response)

@@ -11,23 +11,9 @@ import os
 import random
 import tkinter as tk
 from tkinter import ttk
-import time
 
-# Make root and status_label global
-root = None
-status_label = None
 
-def tinker():
-    global root, status_label
-    root = tk.Tk()
-    root.title("Screen Recorder")
-    root.geometry("300x100")
-    root.attributes('-topmost', True)  
-
-    status_label = ttk.Label(root, text="Waiting for sound...", font=("Arial", 12))
-    status_label.pack(pady=20)
-
-    root.mainloop()
+    
 
 def get_random_file_recording():
     intro_files_recording = []
@@ -55,13 +41,18 @@ def get_random_file_not_understand():
         print("No files found in All_Understands_Recording directory")
         return None
 
+
+
 # translator = googletrans.Translator()
 
 from deep_translator import GoogleTranslator
 
 r = sr.Recognizer()
 
+
 audio_queue = queue.Queue()
+
+
 
 resume_event = threading.Event()
 resume_event.set()  
@@ -74,22 +65,39 @@ fs = 44100
 seconds = 5
 filename = "output.wav"
 
+
 audio_playing = threading.Event()
+
+stop_event = threading.Event()
+
+translation_queue = queue.Queue()
+
+root = tk.Tk()
+root.title("Screen Recorder")
+root.geometry("300x100")
+root.attributes('-topmost', True)  
+
+status_label = ttk.Label(root, text="Waiting for sound...", font=("Arial", 12))
+status_label.pack(pady=20)
+
+quit_button = ttk.Button(root, text="Quit", command=lambda: stop_event.set())
+quit_button.pack()
+
+
 
 def pause_audio_processing():
     """Menghentikan sementara pemrosesan audio dan mengosongkan antrian."""
     resume_event.clear()
     clear_audio_queue()
     print("Pemrosesan audio dihentikan sementara dan antrian audio dibersihkan.")
-    if status_label:
-        status_label.config(text="Recording complete")
+    status_label.config(text="Recording complete")
 
 def resume_audio_processing():
     """Melanjutkan pemrosesan audio."""
     resume_event.set()
     print("Pemrosesan audio dilanjutkan.")
-    if status_label:
-        status_label.config(text="Resume for sound...")
+    status_label.config(text="Resume for sound...")
+
 
 def clear_audio_queue():
     """Mengosongkan semua item dalam antrian audio."""
@@ -114,6 +122,7 @@ def play_audio(audio_file):
     if not audio_playing.is_set():  
         audio_playing.set()  
         try:
+
             full_path = None
             possible_paths = [
                 os.path.join('All_Intro_Recording', audio_file),
@@ -143,8 +152,7 @@ def play_audio(audio_file):
             audio_playing.clear()  
 
 def record_audio():
-    if status_label:
-        status_label.config(text="Waiting for sound...")
+    status_label.config(text="Waiting for sound...")
     print("Menunggu suara untuk memulai perekaman...")
     """Fungsi untuk merekam audio dan memasukkannya ke dalam antrian."""
     p = pyaudio.PyAudio()  
@@ -164,8 +172,7 @@ def record_audio():
 
             if detect_sound(data):
                 print("Suara terdeteksi, mulai merekam...")
-                if status_label:
-                    status_label.config(text="Recording in progress...")
+                status_label.config(text="Recording in progress...")
                 random_file = get_random_file_recording()
                 if random_file:
                     play_thread = threading.Thread(target=play_audio, args=(random_file,))
@@ -174,6 +181,7 @@ def record_audio():
                     play_thread = None
                 play_thread.start()
                 frames.append(data)
+
 
                 chunks_recorded = 0
                 silence_chunks = 0
@@ -184,20 +192,21 @@ def record_audio():
                     frames.append(data)
                     chunks_recorded += 1
 
+       
                     if chunks_recorded >= min_chunks:
                         if detect_sound(data):
                             silence_chunks = 0  
                         else:
                             silence_chunks += 1
                             
+
                         if silence_chunks >= int(fs / chunk):
                             break
                     
                 audio_queue.put(b''.join(frames))
                 frames = []
                 print("Perekaman selesai, menunggu resume untuk melanjutkan...")
-                if status_label:
-                    status_label.config(text="Recording complete")
+                status_label.config(text="Recording complete")
                 
                 resume_event.clear()  
     except Exception as e:
@@ -210,11 +219,11 @@ def record_audio():
 def process_audio():
     """Fungsi untuk memproses audio dari antrian dan melakukan transkripsi."""
     while True:
-        
         audio_data = audio_queue.get()
         if audio_data is None:
             break
         try:
+
             wf = wave.open(filename, 'wb')
             wf.setnchannels(channels)
             wf.setsampwidth(pyaudio.PyAudio().get_sample_size(sample_format))
@@ -223,19 +232,19 @@ def process_audio():
             wf.close()
             print(f"Audio disimpan ke {filename}")
 
+
             with sr.AudioFile(filename) as source:
                 audio = r.record(source)
                 try:
                     transcription = r.recognize_google(audio, language='id-ID')
                     translate = GoogleTranslator(source='auto', target='en').translate(transcription)
                     print(f"Transkripsi: {translate}")
-                    
-                    # Return translation to be used by main.py
-                    yield translate
+                    translation_queue.put(translate)
                 except sr.UnknownValueError:
                     random_file_not_understand = get_random_file_not_understand()
                     if random_file_not_understand:
                         play_thread = threading.Thread(target=play_audio, args=(random_file_not_understand,))
+               
                     else:
                         print("No intro file found to play")
                         play_thread = None
@@ -249,15 +258,13 @@ def process_audio():
         finally:
             audio_queue.task_done()
 
-# Start GUI thread first
-gui_thread = threading.Thread(target=tinker, daemon=True)
-gui_thread.start()
 
-# Give GUI time to initialize
-time.sleep(1)
 
 record_thread = threading.Thread(target=record_audio, daemon=True)
 record_thread.start()
 
+root.mainloop()
+
 process_thread = threading.Thread(target=process_audio, daemon=True)
 process_thread.start()
+

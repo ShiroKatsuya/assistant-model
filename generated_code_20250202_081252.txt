@@ -1,0 +1,10 @@
+bisakah saya memprediksi kripto 1 hari, 1 jam, 7 hari ke depan dengan data label ini di sini?
+Name
+Price
+1h %
+24h %
+7d %
+Market Cap
+Volume(24h)
+Circulating Supply
+Last Updated

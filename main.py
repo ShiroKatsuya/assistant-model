@@ -24,6 +24,7 @@ monster_client = client()
 from o_detection_with_audio import objek_deteksi
 from google.genai.types import (GenerateContentConfig
 )
+# from main_ui import embed_app
 
 
 # from o_detection_transformers import objek_deteksi

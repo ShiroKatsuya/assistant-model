@@ -1,12 +1,12 @@
 from datasets import load_dataset
 import json
 
-ds = load_dataset("HuggingFaceTB/smollm-corpus", "cosmopedia-v2")
+ds = load_dataset("microsoft/orca-agentinstruct-1M-v1", "code_")
 formatted_data = [
     {"instruction": item['prompt'], "input":"", "output": item['text']}
-    for item in ds['train']
+    for item in ds['default']
 ]
 
 # Optionally, save to a JSON file
-with open('smollm-corpus_dataset.json', 'w') as f:
+with open('orca-agentinstruct-1M-v1.json', 'w') as f:
     json.dump(formatted_data, f, indent=4)

@@ -8,7 +8,7 @@ import os
 import concurrent.futures
 import torch
 from functools import lru_cache
-from recording import process_audio, pause_audio_processing, resume_audio_processing,record_audio,process_audio
+from recording import process_audio, pause_audio_processing, resume_audio_processing, record_audio, process_audio
 import threading
 from voice_internet_access import process_internet_access
 from voice import voice
@@ -39,11 +39,19 @@ def simulate_network_delay():
     return delay
 
 def load_simulated_cache():
-    """Load cached website content from a JSON file"""
+    """Load cached website content from a JSON file with error handling"""
     cache_file = Path("website_cache.json")
     if cache_file.exists():
-        with open(cache_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Cache file decode error: {e}. Resetting cache.")
+            return {}
+        if not isinstance(data, dict):
+            print("Cache file format invalid. Resetting cache.")
+            return {}
+        return data
     return {}
 
 def save_to_cache(query, results):
@@ -59,9 +67,8 @@ def process_url(args):
     url, use_simulation = args
     return get_and_transform_page(url, use_simulation)
 
-
 @lru_cache(maxsize=100)
-def ddg_search(query, use_simulation=True):
+def ddg_search(query, use_simulation=False):
     """Cache search results for identical queries with simulation option"""
     if use_simulation:
         print("\nSimulating search process...")
@@ -88,7 +95,12 @@ def ddg_search(query, use_simulation=True):
             print(f"Voice error: {e}")
     
     results = DDGS().text(query, max_results=3)
-    urls = [result['href'] for result in results]
+    urls = []
+    for result in results:
+        if isinstance(result, dict) and 'href' in result:
+            urls.append(result['href'])
+        else:
+            print(f"Skipping invalid result item: {result}")
 
     if use_simulation:
         print(f"\nFound {len(urls)} relevant pages to analyze")
@@ -148,32 +160,26 @@ def get_and_transform_page(url, use_simulation=False):
         'lists': [li.text.strip() for li in soup.find_all('li') if li.text.strip()]
     }
 
-
     if use_simulation:
         print("Extracted content by type:")
 
         try:
- 
             voiced_messages = set()
-
 
             def voice_once(message_key, condition):
                 if condition and message_key not in voiced_messages:
                     voice(message_key)
                     voiced_messages.add(message_key)
-                  
-
+              
             if content['title']:
                 print("\nTitle:")
                 print(content['title'])
                 voice_once("Multiple titles found", len(content['title']) >= 3)
        
-
             if content['headings']:
                 print("Headings Accessed")
                 voice_once("Multiple headings found", len(content['headings']) >= 3)
     
-
             if content['paragraphs']:
                 print("Paragraphs Accessed") 
                 voice_once("Multiple paragraphs found", len(content['paragraphs']) >= 3)
@@ -181,7 +187,6 @@ def get_and_transform_page(url, use_simulation=False):
             if content['lists']:
                 print("List Accessed")
                 voice_once("Multiple list items found", len(content['lists']) >= 3)
-
 
         except Exception as e:
             print(f"Voice error: {e}")
@@ -210,7 +215,6 @@ def truncate(text, word_limit=400):
 def create_prompt(query, search_results):
     """Create a formatted prompt with search context"""
     prompt = (
-
         "Please provide a detailed explanation about the following topic.\n"
         "Note: If the query relates to stores, products, shopping, or purchasing, provide only basic factual information without detailed explanations."
         f"{'\n\n---\n\n'.join(search_results)}\n\n"
@@ -234,7 +238,6 @@ def create_completion_gemini(prompt, use_simulation=True):
     response = chat.send_message(prompt)
     return response
 
-
 def main():
 
     if torch.cuda.is_available():
@@ -255,9 +258,9 @@ def main():
                         resume_audio_processing()
                         return None
                     query = translate
-                    search_results = ddg_search(query,use_simulation=True)
+                    search_results = ddg_search(query, use_simulation=True)
                     prompt = create_prompt(query, search_results)
-                    response = create_completion_gemini(prompt,use_simulation=True)
+                    response = create_completion_gemini(prompt, use_simulation=True)
                     return response
             except StopIteration:
                 continue

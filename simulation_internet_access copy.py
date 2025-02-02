@@ -1,4 +1,4 @@
-# import google.generativeai as genai
+import google.generativeai as genai
 from langchain_community.document_loaders import AsyncChromiumLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from duckduckgo_search import DDGS
@@ -16,14 +16,12 @@ import random
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from open_website import embed_app
-import ollama
 
+# Remove duplicate voice import
 from voice import voice
 
-model_name = "calista:latest"
-
-# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-# client = genai.GenerativeModel('gemini-1.5-flash')
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+client = genai.GenerativeModel('gemini-1.5-flash')
 
 os.environ["USER_AGENT"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -216,8 +214,8 @@ def create_prompt(query, search_results):
     )
     return prompt
 
-def create_completion_ollama(prompt, use_simulation=False):
-    """Generate completion using ollama"""
+def create_completion_gemini(prompt, use_simulation=False):
+    """Generate completion using Gemini model"""
     if use_simulation:
         print("\nGenerating response using AI model...")
         delay = simulate_network_delay()
@@ -227,8 +225,9 @@ def create_completion_ollama(prompt, use_simulation=False):
             voice(f"AI processing took {delay:.2f} seconds")
         except Exception as e:
             print(f"Voice error: {e}")
-    
-    response = ollama.generate(model=model_name, prompt=prompt)
+
+    chat = client.start_chat(history=[])
+    response = chat.send_message(prompt)
     return response
 
 def main():
@@ -257,10 +256,10 @@ def main():
     # Create prompt with search results
     prompt = create_prompt(search_query, search_results)
     
-    # Generate response using ollama
-    response = create_completion_ollama(prompt, use_simulation=use_simulation)
-    print("\nResponse:", response.output)
-    cleaned_response = response.output.replace('*', '').replace('\n\n', '\n')
+    # Generate response
+    response = create_completion_gemini(prompt, use_simulation=use_simulation)
+    print("\nResponse:", response.text)
+    cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
     try:
         voice(cleaned_response)
     except Exception as e:

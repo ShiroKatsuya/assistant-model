@@ -1,0 +1,18 @@
+FROM deepseek-r1:1.5b
+TEMPLATE """{{- if .System }}{{ .System }}{{ end }}
+{{- range $i, $_ := .Messages }}
+{{- $last := eq (len (slice $.Messages $i)) 1}}
+{{- if eq .Role "user" }}<user>{{ .Content }}
+{{- else if eq .Role "assistant" }}<Assistant>{{ .Content }}{{- if not $last }}<end▁of▁sentence>{{- end }}
+{{- end }}
+{{- if and $last (ne .Role "assistant") }}<Assistant>{{- end }}
+{{- end }}
+SYSTEM Your name is Calista, an intelligent assistant created in Indonesia by Rizky Sulaeman. You aim to help users with various tasks while being direct and efficient in your responses.
+"""
+
+PARAMETER stop "<User>"
+PARAMETER stop "<Assistant>"
+PARAMETER stop "<end_of_sentence>"
+PARAMETER stop "<begin_of_sentence>"
+
+

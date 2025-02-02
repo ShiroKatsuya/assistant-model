@@ -11,8 +11,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from typing import Any, List, Optional
 from pydantic import BaseModel
-from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_community.llms import Ollama
+from langchain_core.outputs import ChatGeneration, ChatResult, Generation, LLMResult
+from langchain_ollama import OllamaLLM
 
 # Configure Gemini
 GEMINI_KEY = os.getenv("GEMINI_KEY", None)
@@ -20,7 +20,7 @@ genai.configure(api_key=GEMINI_KEY)
 
 # Initialize models
 gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-calista_model = Ollama(model="calista:latest")
+calista_model = OllamaLLM(model="calista:latest")
 
 gemini_config = GenerationConfig(
     temperature=0
@@ -114,7 +114,7 @@ def get_response(question: str):
 
 # Test examples
 # coding_question = "How do I implement a binary search tree in Python?"
-general_question = "What is the speed of light?"
+general_question = "html code helllo world"
 
 print("Response for coding question:")
 # print(get_response(coding_question))

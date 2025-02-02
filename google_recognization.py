@@ -13,6 +13,6 @@ def getspech(file_path):
         print(f'Error transcribing audio: {e}')
         return None
 
-getspech('Yel_Yel_Plajar_Pancasila.wav')
+getspech('nanta.wav')
 
 print("Speech recognition initialized")

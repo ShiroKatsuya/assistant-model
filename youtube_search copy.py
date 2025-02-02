@@ -9,14 +9,14 @@ from youtubesearchpython import VideosSearch
 from deep_translator import GoogleTranslator
 from typing import Tuple
 from recording import process_audio, pause_audio_processing, resume_audio_processing, record_audio
-# from voice import voice
-# import threading
 import logging as log
 import json
 from voice import voice
-import queue
 import threading
-import time
+import tkinter
+
+# Global tkinter root instance that will be initialized in the main thread.
+tk_root = None
 
 class CommandFailedError(Exception):
     """Exception raised when a command execution fails."""
@@ -88,19 +88,22 @@ def download_youtube_audio(url):
         return None
 
 def convert_mp3_to_wav(mp3_path):
+    wav_path = "output_ai.wav"
     try:
         # Save combined audio as 'output_ai.wav'
-        wav_path = "output_ai.wav"
         subprocess.run(
             ["ffmpeg", "-i", mp3_path, wav_path],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-        return wav_path
     except subprocess.CalledProcessError as e:
         print(f"Error converting MP3 to WAV: {e}")
+        resume_audio_processing()  # Resume processing only after ffmpeg has completed (even on error)
         return None
+
+    resume_audio_processing()  # Resume processing after ffmpeg has successfully finished
+    return wav_path
 
 def audio_to_text(audio_path):
     if not audio_path:
@@ -131,45 +134,40 @@ def cleanup_files(*file_paths):
         except Exception as e:
             print(f"Error cleaning up file {file_path}: {e}")
 
-# Create a queue to hold messages to be "spoken"
-voice_queue = queue.Queue()
-
-def voice_dispatcher():
-    """Continuously check the queue and process voice messages on the main thread."""
-    while True:
-        message = voice_queue.get()
-        if message is None:  # if None, exit the dispatcher
-            break
+def safe_voice(message):
+    """
+    Safely calls the voice function in the main thread to avoid
+    "Tcl_AsyncDelete: async handler deleted by the wrong thread" errors.
+    """
+    if threading.current_thread() != threading.main_thread():
         try:
-            # Call voice in the thread that runs this dispatcher.
-            voice(message)
+            global tk_root
+            if tk_root is not None:
+                tk_root.after(0, voice, message)
+            else:
+                # Fallback if the main-thread tkinter root is not available
+                voice(message)
         except Exception as e:
-            print(f"Error calling voice: {e}")
-        finally:
-            voice_queue.task_done()
-
-# Start the dispatcher in a thread designated to be the 'voice thread'
-# IMPORTANT: If your voice() implementation uses tkinter, you want this dispatcher
-# to run in the main thread. One way to ensure this is to start it in your main loop
-# (or use tkinter's `after` method from your root instance). Here's an example if you're okay
-# with a dedicated thread—**but note**, if voice() wraps Tk calls, you may need a different approach.
-dispatcher_thread = threading.Thread(target=voice_dispatcher, daemon=True)
-dispatcher_thread.start()
-
-def process_voice(text):
-    """
-    Instead of calling voice(text) directly in your processing loop,
-    enqueue the voice call to be handled by the dispatcher.
-    """
-    voice_queue.put(text)
+            print(f"Error scheduling safe_voice: {e}")
+            voice(message)
+    else:
+        voice(message)
 
 def main(*args, **kwargs):
     import time
+    # Initialize the global tkinter root in the main thread
+    global tk_root
+    try:
+        tk_root = tkinter.Tk()
+        tk_root.withdraw()
+    except Exception as e:
+        print(f"Error initializing tkinter root: {e}")
+        tk_root = None
+
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
     model = genai.GenerativeModel('gemini-1.5-flash')
     audio_processor = process_audio()
     resume_audio_processing()
-
 
     print("Getting started with YouTube.")
     time.sleep(1.55)
@@ -219,25 +217,18 @@ def main(*args, **kwargs):
                     response = model.generate_content(
                         f"Take all the key points from the video so that the main information can be conveyed in a clearer and more organized way: {transcript}"
                     )
+                    safe_voice(f"Response: {response.text.replace('*', '').replace('\n\n', '\n')}")
                     
-                    # Instead of calling voice(...) directly:
-                    processed_text = response.text.replace('*', '').replace('\n\n', '\n')
-                    process_voice(f"Response: {processed_text}")
-                    
-                    print(f"Response: {processed_text}")
-
-                    # Cleanup and resume processing as before
+                    print(f"Response: {response.text.replace('*', '').replace('\n\n', '\n')}")
                     cleanup_files(audio_file, wav_file)
-                    resume_audio_processing()
+                    # Stop further audio processing after safe_voice is processed.
+                    return None
             except Exception as e:
                 print(f"Error in processing loop: {e}")
                 resume_audio_processing()
                 continue
     except Exception as e:
         print(e)
-    finally:
-        # Cleanly exit the dispatcher when the main loop ends.
-        voice_queue.put(None)
 
 if __name__ == "__main__":
     main()

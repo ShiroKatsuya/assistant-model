@@ -9,14 +9,13 @@ from youtubesearchpython import VideosSearch
 from deep_translator import GoogleTranslator
 from typing import Tuple
 from recording import process_audio, pause_audio_processing, resume_audio_processing, record_audio
-# from voice import voice
-# import threading
 import logging as log
 import json
 from voice import voice
 import queue
 import threading
 import time
+from open_website import embed_app
 
 class CommandFailedError(Exception):
     """Exception raised when a command execution fails."""
@@ -78,6 +77,10 @@ def download_youtube_audio(url):
                      use_po_token=True,
                      po_token_verifier=po_token_verifier)
         print(f"Found video: {yt.title}")
+        import webbrowser
+        webbrowser.open(url)
+        # embed_app(url)
+        
         audio_stream = yt.streams.filter(only_audio=True).first()
         if not audio_stream:
             raise Exception("No audio stream found")
@@ -130,6 +133,7 @@ def cleanup_files(*file_paths):
                     print("File audio 'output_ai.wav' telah dihapus.")
         except Exception as e:
             print(f"Error cleaning up file {file_path}: {e}")
+    
 
 # Create a queue to hold messages to be "spoken"
 voice_queue = queue.Queue()
@@ -170,7 +174,6 @@ def main(*args, **kwargs):
     audio_processor = process_audio()
     resume_audio_processing()
 
-
     print("Getting started with YouTube.")
     time.sleep(1.55)
 
@@ -194,7 +197,7 @@ def main(*args, **kwargs):
                         continue
 
                     print(f"Found video URL: {youtube_url}")
-
+                    
                     audio_file = download_youtube_audio(youtube_url)
                     if not audio_file:
                         print("Failed to download audio")
@@ -226,9 +229,12 @@ def main(*args, **kwargs):
                     
                     print(f"Response: {processed_text}")
 
-                    # Cleanup and resume processing as before
                     cleanup_files(audio_file, wav_file)
-                    resume_audio_processing()
+                resume_audio_processing()        
+  
+                    
+
+
             except Exception as e:
                 print(f"Error in processing loop: {e}")
                 resume_audio_processing()
@@ -237,6 +243,7 @@ def main(*args, **kwargs):
         print(e)
     finally:
         # Cleanly exit the dispatcher when the main loop ends.
+
         voice_queue.put(None)
 
 if __name__ == "__main__":

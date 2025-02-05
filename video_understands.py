@@ -98,14 +98,13 @@ def extract_audio_text(video_path):
         return None
 
 def get_insights(video_path):
-    generation_config = genai.types.GenerationConfig(
-        temperature=0.2,
-        top_p=0.95,
-        top_k=20,
-        candidate_count=1,
-        max_output_tokens=50,
-        stop_sequences=["STOP!"],
-    )
+    # generation_config = genai.types.GenerationConfig(
+    #     temperature=0.2,
+    #     top_p=0.95,
+    #     top_k=20,
+    #     candidate_count=1,
+    #     stop_sequences=["STOP!"],
+    # )
     """Extract insights from the video using local processing and Gemini Flash."""
     print(f"Processing video: {video_path}")
 
@@ -131,11 +130,11 @@ def get_insights(video_path):
                 """
 
     model = genai.GenerativeModel(model_name="models/gemini-1.5-flash-002")
-
+# generation_config=generation_config
     print("Analyzing video content...")
     response = model.generate_content([prompt, *frames],
                                     request_options={"timeout": 600},
-                                    generation_config=generation_config)
+                                    )
     print(f'Analysis complete!')
     voice(response.text)
     print(response.text)

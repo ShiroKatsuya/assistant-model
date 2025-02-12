@@ -2,13 +2,7 @@ import torch
 import cv2
 import numpy as np
 import supervision as sv
-from recording import (
-    resume_audio_processing, 
-    pause_audio_processing, 
-    record_audio, 
-    process_audio,
-    audio_queue
-)
+
 import threading
 from transformers import (
     AutoImageProcessor, 
@@ -17,7 +11,7 @@ from transformers import (
 
 
 
-def objek_deteksi(stop_event):
+def objek_deteksi():
     CHECKPOINT = "PekingU/rtdetr_r50vd_coco_o365"
     DEVICE = torch.device("cuda") 
     if DEVICE.type == "cuda":
@@ -28,24 +22,18 @@ def objek_deteksi(stop_event):
     model = AutoModelForObjectDetection.from_pretrained(CHECKPOINT).to(DEVICE)
     processor = AutoImageProcessor.from_pretrained(CHECKPOINT)
 
-    # Start audio recording thread if not already running
-    record_thread = threading.Thread(target=record_audio, daemon=True)
-    record_thread.start()
-    
-    # Start audio processing thread if not already running
-    process_thread = threading.Thread(target=process_audio, daemon=True)
-    process_thread.start()
+   
 
     cap = cv2.VideoCapture(0)
     if cap.isOpened():
         print("Camera opened successfully")
-        resume_audio_processing()
+
     else:
         print("Failed to open camera")
         return
 
     try:
-        while not stop_event.is_set():
+        while True:
             ret, frame = cap.read()
             if not ret:
                 break
@@ -80,7 +68,7 @@ def objek_deteksi(stop_event):
         cv2.destroyAllWindows()
         
         # Don't stop the audio threads, just pause processing
-        pause_audio_processing()
+
 
 if __name__ == "__main__":
     objek_deteksi()

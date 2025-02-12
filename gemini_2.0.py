@@ -1,9 +1,8 @@
 from google import genai
-from PIL import Image
+
 import requests
 from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
-from google.genai.types import (GenerateContentConfig
-)
+from google.genai.types import GenerateContentConfig
 
 from IPython.display import Markdown, display
 
@@ -23,26 +22,26 @@ model_id = "gemini-2.0-flash-exp"
 #basic text generation
 
 response = client.models.generate_content(model='gemini-2.0-flash-exp', contents='How does AI work?')
-print(response.text)
+print(response.text)  # Changed from response.split to response.text
 
 
-#web search
+# #web search
 
-google_search_tool = Tool(
-    google_search = GoogleSearch()
-)
+# google_search_tool = Tool(
+#     google_search = GoogleSearch()
+# )
 
-response = client.models.generate_content(
-    model=model_id,
-    contents="prakiraan cuaca bandung 7 hari kedepan",
-    config=GenerateContentConfig(
-        tools=[google_search_tool],
-        response_modalities=["TEXT"],
-    )
-)
+# response = client.models.generate_content(
+#     model=model_id,
+#     contents="prakiraan cuaca bandung 7 hari kedepan",
+#     config=GenerateContentConfig(
+#         tools=[google_search_tool],
+#         response_modalities=["TEXT"],
+#     )
+# )
 
-for each in response.candidates[0].content.parts:
-    print(each.text)
+# for each in response.candidates[0].content.parts:
+#     print(each.text)
 # Example response:
 # The next total solar eclipse visible in the contiguous United States will be on ...
 

@@ -21,3 +21,4 @@ pip install playwright
 pip install youtube-search-python
 pip install pytubefix
 pip install whisper
+

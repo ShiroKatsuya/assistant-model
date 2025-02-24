@@ -47,7 +47,7 @@ def get_insights(video_path):
         raise ValueError(video_file.state.name)
     
     prompt = """Please watch this video and give short, natural responses, as if we were having a casual conversation. 
-                Keep your answers concise and communicative, as if you were having a conversation.
+                Keep Screenshot_425.pngour answers concise and communicative, as if you were having a conversation.
                 Note : Do not use markdown or any formatting.
                 Note : Donot Use Word like "Sure thing! Here are some casual responses to the video:"
                 """

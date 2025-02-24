@@ -38,29 +38,29 @@ def simulate_network_delay():
     time.sleep(delay)
     return delay
 
-def load_simulated_cache():
-    """Load cached website content from a JSON file with error handling"""
-    cache_file = Path("website_cache.json")
-    if cache_file.exists():
-        try:
-            with open(cache_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Cache file decode error: {e}. Resetting cache.")
-            return {}
-        if not isinstance(data, dict):
-            print("Cache file format invalid. Resetting cache.")
-            return {}
-        return data
-    return {}
+# def load_simulated_cache():
+#     """Load cached website content from a JSON file with error handling"""
+#     cache_file = Path("website_cache.json")
+#     if cache_file.exists():
+#         try:
+#             with open(cache_file, "r", encoding="utf-8") as f:
+#                 data = json.load(f)
+#         except json.JSONDecodeError as e:
+#             print(f"Cache file decode error: {e}. Resetting cache.")
+#             return {}
+#         if not isinstance(data, dict):
+#             print("Cache file format invalid. Resetting cache.")
+#             return {}
+#         return data
+#     return {}
 
-def save_to_cache(query, results):
-    """Save search results to the cache file"""
-    cache_file = Path("website_cache.json")
-    cache = load_simulated_cache()
-    cache[query] = results
-    with open(cache_file, "w", encoding="utf-8") as f:
-        json.dump(cache, f, indent=2)
+# def save_to_cache(query, results):
+#     """Save search results to the cache file"""
+#     cache_file = Path("website_cache.json")
+#     cache = load_simulated_cache()
+#     cache[query] = results
+#     with open(cache_file, "w", encoding="utf-8") as f:
+#         json.dump(cache, f, indent=2)
 
 def process_url(args):
     """Helper function to process URLs in parallel"""
@@ -71,28 +71,9 @@ def process_url(args):
 def ddg_search(query, use_simulation=False):
     """Cache search results for identical queries with simulation option"""
     if use_simulation:
-        print("\nSimulating search process...")
+        voice("\nSimulating search process...")
         delay = simulate_network_delay()
-        try:
-            voice("Simulating search process...")
-            print(f"Search engine request took {delay:.2f} seconds")
-            voice(f"Search engine request took {delay:.2f} seconds")
-        except Exception as e:
-            print(f"Voice error: {e}")
-        
-        cache = load_simulated_cache()
-        if query in cache:
-            print("Results found in cache")
-            try:
-                voice("Results found in cache")
-            except Exception as e:
-                print(f"Voice error: {e}")
-            return cache[query]
-        print("No cached results found, performing live search")
-        try:
-            voice("No cached results found, performing live search")
-        except Exception as e:
-            print(f"Voice error: {e}")
+        voice(f"Search engine request took {delay:.2f} seconds")
     
     results = DDGS().text(query, max_results=3)
     urls = []
@@ -100,34 +81,48 @@ def ddg_search(query, use_simulation=False):
         if isinstance(result, dict) and 'href' in result:
             urls.append(result['href'])
         else:
-            print(f"Skipping invalid result item: {result}")
+            voice(f"Skipping invalid result item: {result}")
 
     if use_simulation:
-        print(f"\nFound {len(urls)} relevant pages to analyze")
-        try:
-            voice(f"\nFound {len(urls)} relevant pages to analyze")
-        except Exception as e:
-            print(f"Voice error: {e}")
+        voice(f"\nFound {len(urls)} relevant pages to analyze")
+        embed_app(urls)
+        # Ask for voice confirmation once here
+        voice("Do you want to continue? Please say 'Yes' for an explanation or 'No' to skip.")
+        resume_audio_processing()
+        audio_processor = process_audio()
+        translate = next(audio_processor)
+        accepted_responses = {"yes", "sure", "ok", "okay", "yup", "yep"}
+        if not any(resp in translate.lower() for resp in accepted_responses):
+            voice("Response not validated. Aborting processing of search results.")
+            return []
+        voice("Validated response received. Continuing with page processing...")
 
-    url_args = [(url, use_simulation) for url in urls]
-    with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-        docs = list(executor.map(process_url, url_args))
-
-    content = [truncate(re.sub("\n\n+", "\n", doc.page_content)) for doc in docs]
+        # Process pages sequentially (to avoid concurrently running multiple voice prompts)
+        docs = [get_and_transform_page(url, use_simulation=True, already_validated=True) for url in urls]
+    else:
+        url_args = [(url, use_simulation) for url in urls]
+        with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+            docs = list(executor.map(process_url, url_args))
     
-    if use_simulation:
-        print("\nSaving results to cache for future use")
-        try:
-            voice("Saving results to cache for future use")
-        except Exception as e:
-            print(f"Voice error: {e}")
-        save_to_cache(query, content)
-    
+    # Instead of truncating, return all available content:
+    content = [re.sub("\n\n+", "\n", doc.page_content) for doc in docs]
     return content
 
-@lru_cache(maxsize=100)
-def get_and_transform_page(url, use_simulation=False):
-    """Cache transformed pages for identical URLs"""
+
+def _get_and_transform_page_uncached(url, use_simulation=False, already_validated=False):
+    """Helper to retrieve and transform a page without caching."""
+    # Only perform the validation step if simulation is requested and not already validated.
+    if use_simulation and not already_validated:
+        voice("Do you want to continue? Please say 'Yes' for an explanation or 'No' to skip.")
+        resume_audio_processing()
+        audio_processor = process_audio()
+        translate = next(audio_processor)
+        accepted_responses = {"yes", "sure", "ok", "okay", "yup", "yep"}
+        if not any(resp in translate.lower() for resp in accepted_responses):
+            voice("Response not validated. Aborting content return.")
+            return Document(page_content="")  # Aborts processing if not confirmed.
+        voice("Validated response received. Continuing...")
+
     if use_simulation:
         delay = simulate_network_delay()
         try:
@@ -135,77 +130,41 @@ def get_and_transform_page(url, use_simulation=False):
             print(f"\nAccessing: {url} | Page load took {delay:.2f} seconds")
         except Exception as e:
             print(f"Embed error: {e}")
-    
+
     loader = AsyncChromiumLoader([url])
     html = loader.load()[0]
+
     if use_simulation:
-        print("Extracting relevant content...")
+        voice("Extracting full content...")
         delay = simulate_network_delay()
-        print(f"Content extraction took {delay:.2f} seconds")
-        if delay >= 3:
-            delay = 1
-            try:
-                voice(f"Content extraction took {delay:.2f} seconds")
-            except Exception as e:
-                print(f"Voice error: {e}")
+        voice(f"Content extraction took {delay:.2f} seconds")
 
-    # Parse HTML with BeautifulSoup
+    # Instead of selectively extracting elements, extract all text from the page:
     soup = BeautifulSoup(str(html.page_content), 'html.parser')
-    
-    # Extract text from different elements
-    content = {
-        'title': soup.find('h1').text.strip() if soup.find('h1') else '',
-        'paragraphs': [p.text.strip() for p in soup.find_all('p') if p.text.strip()],
-        'headings': [h.text.strip() for h in soup.find_all(['h2', 'h3', 'h4']) if h.text.strip()],
-        'lists': [li.text.strip() for li in soup.find_all('li') if li.text.strip()]
-    }
+    final_text = soup.get_text(separator="\n")
 
+    return Document(page_content=final_text)
+
+
+@lru_cache(maxsize=100)
+def _get_and_transform_page_cached(url):
+    """Cached version for non-simulation (non-interactive) mode."""
+    # In cached mode, we force use_simulation=False so that no voice prompt is produced.
+    return _get_and_transform_page_uncached(url, use_simulation=False)
+
+
+def get_and_transform_page(url, use_simulation=False, already_validated=False):
+    """
+    Retrieve and transform the webpage at the given URL.
+    
+    In simulation mode (use_simulation=True) the function will prompt for user validation
+    unless already_validated is True. When use_simulation is False (non-interactive mode),
+    the result is cached.
+    """
     if use_simulation:
-        print("Extracted content by type:")
-
-        try:
-            voiced_messages = set()
-
-            def voice_once(message_key, condition):
-                if condition and message_key not in voiced_messages:
-                    voice(message_key)
-                    voiced_messages.add(message_key)
-              
-            if content['title']:
-                print("\nTitle:")
-                print(content['title'])
-                voice_once("Multiple titles found", len(content['title']) >= 3)
-       
-            if content['headings']:
-                print("Headings Accessed")
-                voice_once("Multiple headings found", len(content['headings']) >= 3)
-    
-            if content['paragraphs']:
-                print("Paragraphs Accessed") 
-                voice_once("Multiple paragraphs found", len(content['paragraphs']) >= 3)
-          
-            if content['lists']:
-                print("List Accessed")
-                voice_once("Multiple list items found", len(content['lists']) >= 3)
-
-        except Exception as e:
-            print(f"Voice error: {e}")
-
-    # Combine all content with section headers
-    final_text = ""
-    if content['title']:
-        final_text += "TITLE:\n" + content['title'] + "\n\n"
-    if content['headings']:
-        final_text += "HEADINGS:\n" + "\n".join(content['headings']) + "\n\n"
-    if content['paragraphs']:
-        final_text += "PARAGRAPHS:\n" + "\n\n".join(content['paragraphs']) + "\n\n"
-    if content['lists']:
-        final_text += "LIST ITEMS:\n" + "\n".join("• " + item for item in content['lists'])
-
-    # Create document with extracted content using dataclass
-    doc = Document(page_content=final_text)
-    
-    return doc
+        return _get_and_transform_page_uncached(url, use_simulation, already_validated)
+    else:
+        return _get_and_transform_page_cached(url)
 
 def truncate(text, word_limit=400):
     """Limit text to specified number of words"""
@@ -225,48 +184,57 @@ def create_prompt(query, search_results):
 def create_completion_gemini(prompt, use_simulation=True):
     """Generate completion using Gemini model"""
     if use_simulation:
-        print("\nGenerating response using AI model...")
+        voice("\nGenerating response using AI model...")
         delay = simulate_network_delay()
-        print(f"AI processing took {delay:.2f} seconds")
-        try:
-            voice("Generating response using AI model...")
-            voice(f"AI processing took {delay:.2f} seconds")
-        except Exception as e:
-            print(f"Voice error: {e}")
+        voice(f"AI processing took {delay:.2f} seconds")
 
     chat = client.start_chat(history=[])
     response = chat.send_message(prompt)
     return response
 
 def main():
-
     if torch.cuda.is_available():
         print("CUDA is available. Utilizing GPU for processing.")
     else:
         print("CUDA is not available. Proceeding with CPU.")
+        
     audio_processor = process_audio()
     resume_audio_processing()
+    
     try:
-        
         while True:
             try:
                 translate = next(audio_processor)
                 if translate:
                     pause_audio_processing()
-                    if any(keyword in translate.lower() for keyword in ["stop internet", "hentikan internet", "stop internet", "matikan internet"]):
+                    
+                    # Check if the user said a stop command.
+                    if any(keyword in translate.lower() for keyword in [
+                        "stop internet", "hentikan internet", "matikan internet"]):
                         voice("Menghentikan akses internet...")
                         resume_audio_processing()
                         return None
+
                     query = translate
                     search_results = ddg_search(query, use_simulation=True)
+                    
+                    # If user response was negative (i.e. "No") then skip AI processing.
+                    if not search_results:
+                        voice("User opted out, skipping AI processing.")
+                        resume_audio_processing()
+                        continue
+
                     prompt = create_prompt(query, search_results)
                     response = create_completion_gemini(prompt, use_simulation=True)
                     return response
+
             except StopIteration:
                 continue
+
     except KeyboardInterrupt:
         print("\nOperation cancelled by user")
         return None
+
     except Exception as e:
         print(f"\nAn error occurred: {str(e)}")
         resume_audio_processing()

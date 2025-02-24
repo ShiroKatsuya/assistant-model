@@ -279,7 +279,7 @@ def main():
                     voice("Sorry, something went wrong while stopping the desktop")
                 finally:
                     resume_audio_processing()
-            elif any(keyword in translate.lower() for keyword in ["open desktop","buka desktop","desktop","buka desktop"]):
+            elif any(keyword in translate.lower() for keyword in ["Run desktop","Run desktop","Run desktop","Run desktop"]):
                 try:
                     with detection_lock:
                         if detection_thread and detection_thread.is_alive():

@@ -308,7 +308,19 @@ def main(initial_message: str = None, second_message: str = None, full_history: 
 
     ## Instructions
     Engage with the user naturally while ensuring ALL important information is saved using save_recall_memory. Store complete context and details, not just basic facts. Cross-reference memories for consistency and use them to provide personalized responses.
-    
+
+    ## Note
+    1. Don't explain your duties; just answer the user's questions and provide the information needed.
+    2. Focus on the heart of the matter without adding explanations about your role or working methods.
+    3. Prioritize clarity and conciseness in every response.
+    4. Deliver the answer directly so that the user can immediately understand the solution offered.
+    5. Avoid repeating explanations that are irrelevant to the user's question or need.
+    6. Provide factual and precise information according to the context requested.
+    7. Ensure that your response remains professional without overemphasizing your internal processes.
+    8. Keep every sentence adding value to the user's understanding and problem solving.
+    9. Be consistent in your delivery style to avoid confusion about your role or responsibilities.
+    10. Always prioritize quality answers that are informative and to the point, without going into detail about your personal role.
+
     """
     
     # ## If the User Asks About You

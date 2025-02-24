@@ -24,6 +24,13 @@ monster_client = client()
 from o_detection_with_audio import objek_deteksi
 from google.genai.types import (GenerateContentConfig
 )
+
+from automation import main as automation_main
+
+# from ai_otonom import internet_akses
+
+
+
 # from main_ui import embed_app
 
 
@@ -54,44 +61,72 @@ def main():
     # audio_thread_intro.join()
     try:
         for translate in process_audio():
-            if any(keyword in translate.lower() for keyword in ["create image", "create images", "buatkan saya gambar", "gambar", "image", "buatkan gambar","picture","pictures","buatkan gambar","photo","photos","buatkan gambar","Draw","draw","Make"]):
-                context= translate
+            if any(keyword in translate.lower() for keyword in ["create image", "create images", "buatkan saya gambar", "gambar", "image", "buatkan gambar", "picture", "pictures", "photo", "photos", "Draw", "draw", "Make"]):
+                context = translate
                 pause_audio_processing()
                 image = None
 
                 try:
-
                     image_intro_thread = threading.Thread(target=play_audio, args=(audio_file,))
                     image_intro_thread.start()
                     image_intro_thread.join()
                     
                     response = monster_client.generate(model='txt2img', data={
-                        "prompt": f"Create a realistic and contextually accurate visualization of: {translate} in the context",
+                        "prompt": f"Create a realistic and contextually accurate visualization of: {translate}",
                         "negative_prompt": "cartoon, abstract, unrealistic, distorted", 
                         "samples": 1,
                         "steps": 30,  
                         "guidance_scale": 7.5  
-                        })
+                    })
                     print(response)
                     image_url = response['output'][0]  
                     image_bytes = requests.get(image_url).content
                     image = Image.open(io.BytesIO(image_bytes))
-                    image.resize((1920, 1080 + 850+1))
+                    image = image.resize((1920, 1080 + 850 + 1))
                     image.show()
               
                     sentiment = image
 
-                    # print(translate)
+                    # Ask the user whether they want an explanation for this image.
+                    voice("Do you want an explanation of this image? Please say 'Yes' for an explanation or 'No' to skip.")
+                    resume_audio_processing()
+                    # Wait for the user's response.
+                    answer = next(process_audio())
                     
-                    response = client.models.generate_content(model=model_id, config=generation_config,contents=[sentiment, f"Discuss the context: {context}, briefly with a focus on the information conveyed by the image.Briefly explain the meaning of the image and provide theoretical explanations or in-depth information related to what is depicted in the image."])
-                    cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
-                    print(cleaned_response)
-                    voice(cleaned_response)
+                    if any(keyword in answer.lower() for keyword in ["ya", "yes", "iya", "sure", "ok", "oke", "yup", "yep"]):
+                        voice("Please wait while I generate the explanation for the image.")
+                        explanation_response = client.models.generate_content(
+                            model=model_id, 
+                            config=generation_config,
+                            contents=[
+                                sentiment, 
+                                f"Discuss the context: {context} briefly with a focus on the information conveyed by the image. Briefly explain the meaning of the image and provide any theoretical or in-depth information related to what is depicted."
+                            ]
+                        )
+                        cleaned_response = explanation_response.text.replace('*', '').replace('\n\n', '\n')
+                        print(cleaned_response)
+                        voice(cleaned_response)
+                    else:
+                        voice("I hope you enjoy the image.")
                 except Exception as e:
                     print(f"Error during image generation: {e}")
                 finally:
                     sentiment.close()
                     resume_audio_processing()
+
+
+            elif any(keyword in translate.lower() for keyword in ["open", "buka", "jalankan", "run", "start", "execute", "launch", "mulai", "nyalakan", "hidupkan", "application", "aplikasi", "app", "program", "software"]):
+                context = translate
+                try:
+                    import re
+                    keywords = ["open", "buka", "jalankan", "run", "start", "execute", "launch", "mulai", "nyalakan", "hidupkan", "application", "aplikasi", "app", "program", "software"]
+                    pattern = r'\b(?:' + '|'.join(map(re.escape, keywords)) + r')\b'
+                    cleaned_translate = re.sub(pattern, '', translate, flags=re.IGNORECASE).strip()
+                    cleaned_translate = re.sub(r'\s+', ' ', cleaned_translate)
+                    automation_main(cleaned_translate)
+                finally:
+                    resume_audio_processing()
+
 
             elif any(keyword in translate.lower() for keyword in ["stop internet", "hentikan internet", "stop internet", "stop internet", "matikan internet"]):
                 try:
@@ -338,3 +373,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

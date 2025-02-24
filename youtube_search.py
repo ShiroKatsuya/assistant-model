@@ -17,7 +17,7 @@ import threading
 import time
 from open_website import embed_app
 import ollama
-
+import webbrowser
 
 class CommandFailedError(Exception):
     """Exception raised when a command execution fails."""
@@ -79,16 +79,23 @@ def download_youtube_audio(url):
         return None
         
     try:
+        # Initialize YouTube object with required configuration
         yt = YouTube(url,
                      proxies=get_youtube_proxy_configuration(use_proxy_default),
                      use_po_token=True,
                      po_token_verifier=po_token_verifier)
         print(f"Found video: {yt.title}")
+        
+
+        webbrowser.open(url)
+        
+        # Get audio stream and download
         audio_stream = yt.streams.filter(only_audio=True).first()
         if not audio_stream:
             raise Exception("No audio stream found")
         filename = f"{yt.title}.mp3"
         return audio_stream.download(filename=filename)
+        
     except Exception as e:
         print(f"Error downloading YouTube audio: {e}")
         return None

@@ -30,7 +30,7 @@ def save_audio(teks):
         language='en',
         speaker='en_67',  # Using a clearer speaker
         sample_rate=48000,  # Ensuring sample rate does not exceed 48000
-        device='cuda',
+        device='cpu',
         put_accent=True,
         put_yo=True,
         num_threads=8  # Optimized number of threads for better processing
@@ -50,7 +50,7 @@ def voice(teks, chunk_length_ms=5500):  # 'chunk_length_ms' is no longer require
         language='en',
         speaker='en_67',  # Using a clearer speaker
         sample_rate=48000,  # Ensuring sample rate does not exceed 48000
-        device='cuda',
+        device='cpu',
         put_accent=True,
         put_yo=True,
         num_threads=8  # Optimized number of threads for better processing

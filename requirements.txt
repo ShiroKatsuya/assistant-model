@@ -1,24 +1,36 @@
-pip install deep-translator
-pip install gtts
-pip install pydub
-pip install SpeechRecognition
-pip install simpleaudio
-pip install PyAudio
-pip install numpy
-pip install ollama
-pip install pywin32
-pip install datasets
-pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
-pip install loguru
-pip install number2text
-pip install requests
-pip install google-generativeai
-pip install monsterapi
-pip install pydantic
-pip install langchain-community
-pip install duckduckgo-search
-pip install playwright
-pip install youtube-search-python
-pip install pytubefix
-pip install whisper
-
+deep-translator
+gtts
+pydub
+SpeechRecognition
+simpleaudio
+PyAudio
+numpy
+ollama
+pywin32
+datasets
+--pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
+loguru
+number2text
+requests
+google-generativeai
+monsterapi
+pydantic
+langchain-community
+duckduckgo-search
+playwright
+youtube-search-python
+pytubefix
+whisper
+webrtcvad
+pkg_resources
+setuptools
+Pillow
+monsterapi
+langchain_community
+langgraph
+tavily-python
+duckduckgo_search
+pyautogui
+opencv-python
+moviepy
+playwright

@@ -1,4 +1,4 @@
-FROM C:\Users\Rizky Sulaeman\.ollama\models\blobs\sha256-8bf0e1710a2c99b4cdf97de5f94ce74d6af01ab579aa1f324fb5fae47244cea2
+FROM C:\Users\MyBook Hype AMD\.ollama\models\blobs\sha256-8bf0e1710a2c99b4cdf97de5f94ce74d6af01ab579aa1f324fb5fae47244cea2
 TEMPLATE """{{- if .Suffix }}<｜fim▁begin｜>{{ .Prompt }}<｜fim▁hole｜>{{ .Suffix }}<｜fim▁end｜>
 {{- else if .Messages }}
 {{- range $i, $_ := .Messages }}

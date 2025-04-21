@@ -323,7 +323,7 @@ def draw_Interface_face():
     left_eye_open = "o"  # Default open eye
     right_eye_open = "o"  # Default open eye
     
-    # Expressions vary based on sentiment
+    # Expressions vary based on sentiment and context
     if sentiment == 'happy' or current_tone == 'enthusiastic':
         left_eye_open = "^"
         right_eye_open = "^"
@@ -352,18 +352,45 @@ def draw_Interface_face():
         left_eye = left_eye_open
         right_eye = right_eye_open
     
-    # Mouth shapes vary based on state and expression
+    # Enhanced mouth shapes vary based on state, expression, and text from recording.py
     if current_face_state == 'speaking':
-        # Replace animated mouth with dots
-        mouth = "....."
+        # More varied speaking mouths based on tone
+        speak_cycle = (current_time * 3) % 4  # Cycle through mouth shapes
+        if sentiment == 'happy' or current_tone == 'enthusiastic':
+            speak_options = ["v", "w", "u", "o"]
+            mouth = speak_options[int(speak_cycle)]
+        elif sentiment == 'concerned':
+            speak_options = ["n", "m", "~", "."]
+            mouth = speak_options[int(speak_cycle)]
+        else:
+            speak_options = [".", "o", "O", "."]
+            mouth = speak_options[int(speak_cycle)]
     else:
-        # Default mouth state
+        # Default mouth state with more variations based on context
         if sentiment == 'happy' or current_tone == 'enthusiastic':
             mouth = "v"  # Happy mouth
         elif sentiment == 'concerned':
             mouth = "n"  # Concerned mouth
         elif current_face_state == 'thinking':
-            mouth = "."  # Thinking mouth
+            # More varied thinking expressions
+            think_cycle = (current_time * 0.5) % 3
+            if think_cycle < 1:
+                mouth = "."  # Thinking dot
+            elif think_cycle < 2:
+                mouth = "o"  # Small O
+            else:
+                mouth = "~"  # Wavy thinking line
+        elif "waiting for sound" in status_label.cget("text").lower():
+            # Alert, attentive waiting
+            mouth = "‿"  # Slight smile while waiting
+        elif "waiting to resume" in status_label.cget("text").lower():
+            mouth = "_"  # Neutral line while paused
+        elif "recording in progress" in status_label.cget("text").lower():
+            mouth = "ᴥ"  # Active listening mouth
+        elif "menunggu pemrosesan" in status_label.cget("text").lower():
+            mouth = "ω"  # Processing wait
+        elif "recording complete" in status_label.cget("text").lower():
+            mouth = "u"  # Slight smile of completion
         else:
             mouth = "_"  # Neutral mouth
     
@@ -372,22 +399,44 @@ def draw_Interface_face():
     
     # For more asymmetrical expressions during specific states
     if current_face_state == 'thinking' and not current_face_state == 'speaking':
-        # Occasional asymmetrical thinking expressions
-        think_cycle = (current_time * 0.7) % 10
+        # More varied asymmetrical thinking expressions
+        think_cycle = (current_time * 0.7) % 12
         if think_cycle < 2:
             face_text = f"{left_eye} {mouth} -"  # Looking left
         elif think_cycle < 4:
             face_text = f"- {mouth} {right_eye}"  # Looking right
+        elif think_cycle < 6:
+            face_text = f"• {mouth} {right_eye}"  # Focused left eye
+        elif think_cycle < 8:
+            face_text = f"{left_eye} {mouth} •"  # Focused right eye
+        elif think_cycle < 9:
+            face_text = f"⌐ {mouth} ¬"  # Analytical look
     
-    # Eyes can look in different directions occasionally
+    # Enhanced idle behavior
     if current_face_state == 'idle' and time_since_interaction > 15:
-        idle_look_cycle = (current_time * 0.3) % 15
+        idle_look_cycle = (current_time * 0.3) % 20
         if idle_look_cycle < 2:
             face_text = f"- {mouth} {right_eye}"  # Looking right
         elif idle_look_cycle < 4:
             face_text = f"{left_eye} {mouth} -"  # Looking left
         elif idle_look_cycle < 5:
             face_text = f". {mouth} ."  # Looking up slightly
+        elif idle_look_cycle < 7:
+            face_text = f"≧ {mouth} ≦"  # Relaxed expression
+        elif idle_look_cycle < 9:
+            face_text = f"◠ {mouth} ◠"  # Content idle
+        elif idle_look_cycle < 10:
+            face_text = f"◡ _ ◡"  # Simple contented face
+    
+    # Special expressions based on recording.py specific messages
+    if status_label and hasattr(status_label, 'cget'):
+        current_status = status_label.cget("text").lower()
+        if "mendeteksi suara" in current_status or "mulai merekam" in current_status:
+            face_text = f"◉ {mouth} ◉"  # Alert eyes when detecting sound
+        elif "tidak dapat memahami audio" in current_status:
+            face_text = f"? {mouth} ?"  # Confusion when not understanding
+        elif "error" in current_status or "gagal" in current_status:
+            face_text = f"× _ ×"  # Error face
     
     # Store previous face text for transitions
     animation_canvas.prev_face_text = face_text

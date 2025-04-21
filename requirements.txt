@@ -21,3 +21,11 @@ pip install playwright
 pip install youtube-search-python
 pip install pytubefix
 pip install whisper
+pyaudio==0.2.13
+SpeechRecognition==3.10.0
+numpy==1.24.3
+simpleaudio==1.0.4
+webrtcvad==2.0.10
+Pillow==10.0.0
+deep-translator==1.11.4
+customtkinter==5.2.0

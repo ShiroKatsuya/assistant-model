@@ -6,7 +6,7 @@ import os
 import google.generativeai as genai
 import time
 
-genai.configure(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
+genai.configure(api_key="AIzaSyBovFnjwweKGUnaaihbLi3aacQfK3DZgBk")
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Create initial HTML file

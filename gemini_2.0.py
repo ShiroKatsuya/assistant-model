@@ -8,8 +8,8 @@ from google.genai.types import (GenerateContentConfig
 from IPython.display import Markdown, display
 
 
-client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
-model_id = "gemini-2.0-flash-exp"
+client = genai.Client(api_key="AIzaSyBovFnjwweKGUnaaihbLi3aacQfK3DZgBk")
+model_id = "gemini-2.5-pro-exp-03-25"
 
 
 # video_import = "sample.mp4"
@@ -22,7 +22,7 @@ model_id = "gemini-2.0-flash-exp"
 
 #basic text generation
 
-response = client.models.generate_content(model='gemini-2.0-flash-exp', contents='How does AI work?')
+response = client.models.generate_content(model='gemini-2.5-pro-exp-03-25', contents='How does AI work?')
 print(response.text)
 
 

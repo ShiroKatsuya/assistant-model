@@ -6,7 +6,7 @@ import os
 from google import genai
 import time
 
-client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
+client = genai.Client(api_key="AIzaSyBovFnjwweKGUnaaihbLi3aacQfK3DZgBk")
 model_id = "gemini-2.0-flash-exp"
 
 # Create initial HTML file

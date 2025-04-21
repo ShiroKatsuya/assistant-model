@@ -12,21 +12,18 @@ import random
 import tkinter as tk
 from tkinter import ttk
 import time
-
-# Make root and status_label global
-root = None
-status_label = None
+import math
+from PIL import Image, ImageTk, ImageDraw
+import colorsys
+import jarvis_ui  # Import the separated UI module 
 
 def tinker():
     global root, status_label
     root = tk.Tk()
-    root.title("Screen Recorder")
-    root.geometry("300x100")
-    root.attributes('-topmost', True)  
-
-    status_label = ttk.Label(root, text="Waiting for sound...", font=("Arial", 12))
-    status_label.pack(pady=20)
-
+    
+    # Call the JARVIS UI setup function with callbacks to our functions
+    status_label = jarvis_ui.setup_jarvis_ui(root, pause_audio_processing, resume_audio_processing)
+    
     root.mainloop()
 
 def get_random_file_recording():
@@ -81,15 +78,14 @@ def pause_audio_processing():
     resume_event.clear()
     clear_audio_queue()
     print("Pemrosesan audio dihentikan sementara dan antrian audio dibersihkan.")
-    if status_label:
-        status_label.config(text="Recording complete")
+    jarvis_ui.update_status("Waiting to resume...")
+
 
 def resume_audio_processing():
     """Melanjutkan pemrosesan audio."""
     resume_event.set()
     print("Pemrosesan audio dilanjutkan.")
-    if status_label:
-        status_label.config(text="Resume for sound...")
+    jarvis_ui.update_status("Waiting for sound...")
 
 def clear_audio_queue():
     """Mengosongkan semua item dalam antrian audio."""
@@ -107,6 +103,7 @@ def detect_sound(data):
     """Deteksi apakah ada suara dalam data audio."""
     audio_data = np.frombuffer(data, dtype=np.int16)
     return np.max(np.abs(audio_data)) > 4000  
+
 
 def play_audio(audio_file):
     """Putar audio dalam thread terpisah."""
@@ -143,8 +140,7 @@ def play_audio(audio_file):
             audio_playing.clear()  
 
 def record_audio():
-    if status_label:
-        status_label.config(text="Waiting for sound...")
+    jarvis_ui.update_status("Waiting for sound...")
     print("Menunggu suara untuk memulai perekaman...")
     """Fungsi untuk merekam audio dan memasukkannya ke dalam antrian."""
     p = pyaudio.PyAudio()  
@@ -159,47 +155,64 @@ def record_audio():
 
     try:
         while True:
-            resume_event.wait()  
-            data = stream.read(chunk)
+            if not resume_event.is_set():
+                # If currently paused, wait for resume
+                jarvis_ui.update_status("Waiting to resume...")
+                resume_event.wait()
+                jarvis_ui.update_status("Waiting for sound...")
+                print("Resumed and waiting for sound...")
+                
+            # Read audio data
+            try:
+                data = stream.read(chunk)
+            except Exception as e:
+                print(f"Error reading from stream: {e}")
+                time.sleep(0.1)
+                continue
 
             if detect_sound(data):
-                print("Suara terdeteksi, mulai merekam...")
-                if status_label:
-                    status_label.config(text="Recording in progress...")
+                jarvis_ui.update_status("Recording in progress...")
+                print("Mendeteksi suara, mulai merekam...")
                 random_file = get_random_file_recording()
                 if random_file:
                     play_thread = threading.Thread(target=play_audio, args=(random_file,))
+                    play_thread.start()
                 else:
+                    jarvis_ui.update_status("Recording in progress...")
                     print("No intro file found to play")
-                    play_thread = None
-                play_thread.start()
-                frames.append(data)
+                
+                frames = [data]  # Start with the current data chunk
 
                 chunks_recorded = 0
                 silence_chunks = 0
                 min_chunks = int(fs / chunk * seconds)  
                 
+                # Record until silence is detected
                 while True:
-                    data = stream.read(chunk)
-                    frames.append(data)
-                    chunks_recorded += 1
+                    try:
+                        data = stream.read(chunk)
+                        frames.append(data)
+                        chunks_recorded += 1
 
-                    if chunks_recorded >= min_chunks:
-                        if detect_sound(data):
-                            silence_chunks = 0  
-                        else:
-                            silence_chunks += 1
-                            
-                        if silence_chunks >= int(fs / chunk):
-                            break
-                    
-                audio_queue.put(b''.join(frames))
-                frames = []
-                print("Perekaman selesai, menunggu resume untuk melanjutkan...")
-                if status_label:
-                    status_label.config(text="Recording complete")
+                        if chunks_recorded >= min_chunks:
+                            if detect_sound(data):
+                                silence_chunks = 0  
+                            else:
+                                silence_chunks += 1
+                                
+                            if silence_chunks >= int(fs / chunk):
+                                break
+                    except Exception as e:
+                        print(f"Error during recording: {e}")
+                        break
                 
-                resume_event.clear()  
+                # Process recorded audio
+                audio_queue.put(b''.join(frames))
+                jarvis_ui.update_status("Perekaman selesai, menunggu pemrosesan...")
+                
+                # Pause until processing is complete (will be resumed by process_audio)
+                resume_event.clear()
+                
     except Exception as e:
         print(f"Terjadi kesalahan selama perekaman: {e}")
     finally:
@@ -230,22 +243,34 @@ def process_audio():
                     translate = GoogleTranslator(source='auto', target='en').translate(transcription)
                     print(f"Transkripsi: {translate}")
                     
+                    # Set status to complete before yielding the translation
+                    jarvis_ui.update_status("Recording complete")
                     # Return translation to be used by main.py
                     yield translate
+                    # Always resume audio processing after successful recognition
+                    resume_audio_processing()
                 except sr.UnknownValueError:
                     random_file_not_understand = get_random_file_not_understand()
                     if random_file_not_understand:
                         play_thread = threading.Thread(target=play_audio, args=(random_file_not_understand,))
+                        play_thread.start()
                     else:
                         print("No intro file found to play")
-                        play_thread = None
-                    play_thread.start()
                     print("Google Speech Recognition tidak dapat memahami audio.")
+                    # Set status to complete before resuming
+                    jarvis_ui.update_status("Recording complete")
+                    # Make sure to resume audio processing with a small delay
+                    time.sleep(0.5)
                     resume_audio_processing()
+                    print("Audio processing resumed.")
                 except sr.RequestError as e:
                     print(f"Permintaan ke Google Speech Recognition gagal; {e}")
+                    jarvis_ui.update_status("Recording complete")
+                    resume_audio_processing()
         except Exception as e:
             print(f"Terjadi kesalahan tak terduga: {e}")
+            jarvis_ui.update_status("Recording complete")
+            resume_audio_processing()
         finally:
             audio_queue.task_done()
 

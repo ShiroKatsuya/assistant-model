@@ -153,7 +153,7 @@ Legal moves: {legal_moves}"""
 
 # Penggunaan
 if __name__ == "__main__":
-    API_KEY = "AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE"  # Ganti dengan API key Anda
+    API_KEY = "AIzaSyBovFnjwweKGUnaaihbLi3aacQfK3DZgBk"  # Ganti dengan API key Anda
     game = ChessGame(API_KEY)
     try:
         game.play_game()

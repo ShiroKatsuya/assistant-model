@@ -6,7 +6,7 @@ from datetime import datetime
 import ollama
 from google import genai
 
-client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
+client = genai.Client(api_key="AIzaSyBovFnjwweKGUnaaihbLi3aacQfK3DZgBk")
 model_id = "gemini-2.0-flash-exp"
 
 model_name = "deepseek-r1:1.5b"

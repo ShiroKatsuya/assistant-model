@@ -15,7 +15,7 @@ from google.genai.types import (GenerateContentConfig
 )
 
 MEDIA_FOLDER = 'medias'
-client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
+client = genai.Client(api_key="AIzaSyBovFnjwweKGUnaaihbLi3aacQfK3DZgBk")
 model_id = "gemini-2.0-flash-exp"
 
 _insights_cache = {}

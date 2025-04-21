@@ -26,7 +26,7 @@ from google.genai.types import (GenerateContentConfig
 
 
 
-client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
+client = genai.Client(api_key="AIzaSyBovFnjwweKGUnaaihbLi3aacQfK3DZgBk")
 model_id = "gemini-2.0-flash-exp"
 
 google_search_tool = Tool(
@@ -104,7 +104,7 @@ class State(MessagesState):
 
 def main(initial_message: str = None, second_message: str = None, full_history: List[str] = None):
     # Configure Gemini
-    client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
+    client = genai.Client(api_key="AIzaSyBovFnjwweKGUnaaihbLi3aacQfK3DZgBk")
     model_id = "gemini-2.0-flash-exp"
     # Configure Tavily
     tavily_api_key = os.getenv("TAVILY_API_KEY")

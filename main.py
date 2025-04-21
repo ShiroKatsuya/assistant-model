@@ -297,61 +297,78 @@ def main():
             else:
                 try:
                     pause_audio_processing()
-                    
-                    # Send message with full conversation history
-                    responses = ai_memory_long_term(
-                        initial_message=translate
+
+
+                    response = client.models.generate_content(
+                        model=model_id, 
+                        config=generation_config,
+                        contents=[
+                            translate, 
+                            f"Please respond to this: {translate} in a friendly and informative manner."
+                        ]
                     )
+
+                    cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
+                    
+                    # Process audio with visualization (already calls update_frame internally)
+                    voice(cleaned_response)
+                    resume_audio_processing()
                     
                     
-                    if responses:
-                        final_response = responses[-1]
-                        for node, updates in final_response.items():
-                            if "messages" in updates:
-                                for msg in updates["messages"]:
-                                    if isinstance(msg, AIMessage):
-                                        # Skip tool code responses
-                                        if (hasattr(msg, 'additional_kwargs') and 
-                                            (msg.additional_kwargs.get('tool_calls') or
-                                             msg.additional_kwargs.get('tool_code'))):
-                                            continue
+                    # # Send message with full conversation history
+                    # responses = ai_memory_long_term(
+                    #     initial_message=translate
+                    # )
+                    
+                    
+                    # if responses:
+                    #     final_response = responses[-1]
+                    #     for node, updates in final_response.items():
+                    #         if "messages" in updates:
+                    #             for msg in updates["messages"]:
+                    #                 if isinstance(msg, AIMessage):
+                    #                     # Skip tool code responses
+                    #                     if (hasattr(msg, 'additional_kwargs') and 
+                    #                         (msg.additional_kwargs.get('tool_calls') or
+                    #                          msg.additional_kwargs.get('tool_code'))):
+                    #                         continue
                                         
-                                        # Get the full response content
-                                        cleaned_response = msg.content.replace('*', '').replace('\n\n', '\n')
+                    #                     # Get the full response content
+                    #                     cleaned_response = msg.content.replace('*', '').replace('\n\n', '\n')
                                         
-                                        # Split response into lines
-                                        response_lines = cleaned_response.split('\n')
+                    #                     # Split response into lines
+                    #                     response_lines = cleaned_response.split('\n')
                                         
-                                        # Process each line, skipping tool_code blocks
-                                        valid_lines = []
-                                        skip_block = False
-                                        for line in response_lines:
-                                            line = line.strip()
-                                            # Check for start of tool_code block
-                                            if line.startswith('```tool_code'):
-                                                skip_block = True
-                                                continue
-                                            # Check for end of code block    
-                                            if line.startswith('```') and skip_block:
-                                                skip_block = False
-                                                continue
-                                            # Skip lines in tool_code block
-                                            if skip_block:
-                                                continue
-                                            # Skip individual tool_code lines
-                                            if line.startswith('tool_code'):
-                                                continue
-                                            if line:
-                                                valid_lines.append(line)
+                    #                     # Process each line, skipping tool_code blocks
+                    #                     valid_lines = []
+                    #                     skip_block = False
+                    #                     for line in response_lines:
+                    #                         line = line.strip()
+                    #                         # Check for start of tool_code block
+                    #                         if line.startswith('```tool_code'):
+                    #                             skip_block = True
+                    #                             continue
+                    #                         # Check for end of code block    
+                    #                         if line.startswith('```') and skip_block:
+                    #                             skip_block = False
+                    #                             continue
+                    #                         # Skip lines in tool_code block
+                    #                         if skip_block:
+                    #                             continue
+                    #                         # Skip individual tool_code lines
+                    #                         if line.startswith('tool_code'):
+                    #                             continue
+                    #                         if line:
+                    #                             valid_lines.append(line)
                                         
-                                        # Only process if we have valid lines
-                                        if valid_lines:
-                                            final_response = ' '.join(valid_lines)
-                                            voice(final_response)
-                                            conversation_history.extend([translate, final_response])
-                                        break
-                    else:
-                        print("No response received from AI")
+                    #                     # Only process if we have valid lines
+                    #                     if valid_lines:
+                    #                         final_response = ' '.join(valid_lines)
+                    #                         voice(final_response)
+                    #                         conversation_history.extend([translate, final_response])
+                    #                     break
+                    # else:
+                    #     print("No response received from AI")
                 except TypeError as e:
                     print(f"Error during chat generation: {e}")
                 except Exception as e:

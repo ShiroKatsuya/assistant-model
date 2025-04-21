@@ -22,6 +22,7 @@ from desktop_understands import main as desktop_understands
 os.environ['MONSTER_API_KEY']
 monster_client = client()
 from o_detection_with_audio import objek_deteksi
+import jarvis_ui
 from google.genai.types import (GenerateContentConfig
 )
 
@@ -310,7 +311,24 @@ def main():
 
                     cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
                     
+                    # Determine tone and sentiment based on response content
+                    response_tone = 'neutral'
+                    response_sentiment = 'informative'
+                    
+                    # Check for emotional indicators in the response
+                    if '!' in cleaned_response:
+                        response_tone = 'enthusiastic'
+                        response_sentiment = 'excited'
+                    elif any(word in cleaned_response.lower() for word in ['great', 'awesome', 'fantastic', 'wonderful', 'happy', 'glad']):
+                        response_tone = 'enthusiastic'
+                        response_sentiment = 'happy'
+                    elif any(word in cleaned_response.lower() for word in ['interesting', 'consider', 'perhaps', 'maybe']):
+                        response_sentiment = 'curious'
+                    elif any(word in cleaned_response.lower() for word in ['careful', 'caution', 'warning', 'sorry']):
+                        response_sentiment = 'concerned'
+                    
                     # Process audio with visualization (already calls update_frame internally)
+                    jarvis_ui.update_status("Speaking...", tone=response_tone, user_message=translate, sentiment=response_sentiment)
                     voice(cleaned_response)
                     resume_audio_processing()
                     

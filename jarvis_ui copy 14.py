@@ -29,7 +29,28 @@ conversation_context = {
     'user_engagement_level': 'normal',
     'last_interaction_time': 0,
     'consecutive_questions': 0,
-    'emotion_history': []
+    'emotion_history': [],
+    'current_sentence': '',  # Track current sentence being spoken
+    'emotion_keywords': {    # Map keywords to emotions for better context matching
+        'happy': ['great', 'awesome', 'fantastic', 'wonderful', 'happy', 'glad', 'enjoy', 'pleasure', 'excited', 
+                  'positive', 'success', 'good', 'excellent', 'perfect', 'brilliant', 'delighted', 'joy', 'smile', 'love'],
+        'curious': ['interesting', 'consider', 'perhaps', 'maybe', 'wonder', 'curious', 'question', 'how about', 
+                    'what if', 'possibly', 'let\'s explore', 'imagine', 'intriguing', 'fascinating', 'potential'],
+        'concerned': ['careful', 'caution', 'warning', 'sorry', 'unfortunately', 'issue', 'problem', 'worry',
+                      'danger', 'risk', 'error', 'mistake', 'trouble', 'failed', 'difficult', 'challenging', 'critical'],
+        'excited': ['amazing', 'wow', 'incredible', 'extraordinary', 'remarkable', 'outstanding', 
+                    'mind-blowing', 'spectacular', 'superb', 'magnificent', 'exceptional', 'breathtaking'],
+        'informative': ['important', 'note', 'remember', 'key point', 'essentially', 'fundamentally', 'basically',
+                        'primarily', 'specifically', 'notably', 'significantly', 'critically', 'particularly', 'precisely', 
+                        'in fact', 'indeed', 'to clarify', 'to summarize', 'to conclude', 'effectively', 'essentially'],
+        'thoughtful': ['thoughtfully', 'reflect', 'consider', 'analyze', 'evaluate', 'contemplate', 'ponder',
+                      'examine', 'review', 'assess', 'weigh', 'think about', 'deliberate', 'meditate'],
+        'empathetic': ['understand', 'feel', 'appreciate', 'recognize', 'acknowledge', 'empathize', 
+                       'sympathize', 'relate to', 'connect with', 'compassion', 'care', 'support', 'help'],
+        'technical': ['technical', 'system', 'process', 'function', 'method', 'algorithm', 'implementation',
+                     'architecture', 'structure', 'component', 'module', 'parameter', 'configuration', 'programming', 
+                     'code', 'compile', 'execute', 'run', 'debug', 'optimize', 'performance']
+    }
 }
 
 def create_neumorphic_frame(parent, width, height, bg_color, light_shadow, dark_shadow):
@@ -361,24 +382,51 @@ def draw_Interface_face():
         left_eye = left_eye_open
         right_eye = right_eye_open
     
-    # Enhanced mouth shapes vary based on state, expression, and text from recording.py
+    # Enhanced mouth shapes vary based on state, expression, and text from sentence context
     if current_face_state == 'speaking':
-        # More varied speaking mouths based on tone and sentiment
+        current_sentence = conversation_context.get('current_sentence', '').lower()
+        # Match keywords in current sentence for better contextual expressions
+        detected_sentiment = None
+        
+        # Check sentence against emotion keyword dictionaries
+        for emotion, keywords in conversation_context['emotion_keywords'].items():
+            if any(keyword in current_sentence for keyword in keywords):
+                detected_sentiment = emotion
+                break
+                
+        # Apply sentence-specific context if available, otherwise use general sentiment
+        if detected_sentiment:
+            sentiment = detected_sentiment
+        
+        # More varied speaking mouths based on tone, sentiment, and sentence context
         speak_cycle = (current_time * 3) % 4  # Cycle through mouth shapes
         if sentiment == 'happy' or current_tone == 'enthusiastic':
             speak_options = ["v", "w", "u", "o"]
             mouth = speak_options[int(speak_cycle)]
         elif sentiment == 'excited':
-            speak_options = ["O", "o", "V", "v"]
-            mouth = speak_options[int(speak_cycle)]
+            # More energetic mouth movements for excited speech
+            speak_options = ["O", "o", "V", "v", "u", "U"] 
+            mouth = speak_options[int((current_time * 3.5) % len(speak_options))]
         elif sentiment == 'concerned':
-            speak_options = ["n", "m", "~", "."]
+            if "sorry" in current_sentence or "unfortunately" in current_sentence:
+                # More pronounced concern for apologies
+                speak_options = ["n", "m", "~", "ω", "д"]
+            else:
+                speak_options = ["n", "m", "~", "."]
             mouth = speak_options[int(speak_cycle)]
         elif sentiment == 'curious':
-            speak_options = ["o", "O", "?", "•"]
+            if "?" in current_sentence:
+                # More pronounced curiosity for questions
+                speak_options = ["o", "O", "?", "•", "○"]
+            else:
+                speak_options = ["o", "O", "?", "•"]
             mouth = speak_options[int(speak_cycle)]
         elif sentiment == 'informative':
-            speak_options = ["=", "-", "∼", "≈"]
+            if any(term in current_sentence for term in ["important", "note", "key point"]):
+                # More authoritative mouth for important information
+                speak_options = ["=", "‒", "∼", "≈", "⊏", "⊐"]
+            else:
+                speak_options = ["=", "-", "∼", "≈"]
             mouth = speak_options[int(speak_cycle)]
         else:
             speak_options = [".", "o", "O", "."]
@@ -406,36 +454,159 @@ def draw_Interface_face():
             elif "error" in current_status or "gagal" in current_status:
                 mouth = "×"  # Error face mouth
             elif "speaking" in current_status:
-                # Sentiment-based speaking expressions
-                if sentiment == 'happy' or current_tone == 'enthusiastic':
-                    mouth = "v"  # Happy mouth
-                elif sentiment == 'excited':
-                    mouth = "V"  # Very happy mouth
-                elif sentiment == 'concerned':
-                    mouth = "n"  # Concerned mouth
-                elif sentiment == 'curious':
-                    mouth = "o"  # Curious mouth
-                elif sentiment == 'informative':
-                    mouth = "="  # Informative, even mouth
-                else:
-                    mouth = "_"  # Default neutral
-            else:
-                # Fallbacks based on face state and sentiment
-                if current_face_state == 'thinking':
-                    # More varied thinking expressions
-                    think_cycle = (current_time * 0.5) % 3
-                    if think_cycle < 1:
-                        mouth = "."  # Thinking dot
-                    elif think_cycle < 2:
-                        mouth = "o"  # Small O
+                # Enhanced emotional variations based on sentence content
+                current_sentence = conversation_context.get('current_sentence', '').lower()
+                
+                # Check for question patterns in the current sentence
+                is_question = '?' in current_sentence or any(current_sentence.startswith(word) for word in ['what', 'who', 'where', 'when', 'why', 'how', 'can', 'could', 'would', 'should', 'is', 'are', 'do', 'did', 'has', 'have'])
+                
+                # Check for exclamation or emphasis
+                is_excited = '!' in current_sentence or any(word in current_sentence for word in conversation_context['emotion_keywords']['excited'])
+                
+                # Check for specific content patterns
+                is_cautious = any(word in current_sentence for word in conversation_context['emotion_keywords']['concerned'])
+                is_instructive = any(word in current_sentence for word in ['first', 'second', 'finally', 'step', 'important', 'remember', 'note'])
+                is_empathetic = any(word in current_sentence for word in conversation_context['emotion_keywords']['empathetic'])
+                is_technical = any(word in current_sentence for word in conversation_context['emotion_keywords']['technical']) 
+                is_comparative = any(word in current_sentence for word in ['better', 'worse', 'more', 'less', 'greater', 'smaller', 'however', 'although', 'instead', 'while', 'compared to'])
+                is_thoughtful = any(word in current_sentence for word in conversation_context['emotion_keywords']['thoughtful'])
+                
+                # Check for sentence complexity indicators
+                is_complex = len(current_sentence) > 100 or current_sentence.count(',') > 3
+                is_simple = len(current_sentence) < 50 and ',' not in current_sentence
+                
+                # Check for emotional tone markers
+                has_positive_tone = any(word in current_sentence for word in ['thank', 'appreciate', 'good', 'well', 'nice', 'great'])
+                has_negative_tone = any(word in current_sentence for word in ['not', 'cannot', 'won\'t', 'shouldn\'t', 'never', 'problem'])
+                
+                # Check for uncertainty markers
+                is_uncertain = any(word in current_sentence for word in ['perhaps', 'maybe', 'possibly', 'might', 'could be', 'potentially'])
+                
+                # Determine local sentiment based on sentence content for more accurate facial expressions
+                local_sentiment = sentiment  # Start with global sentiment
+                
+                # Override sentiment if we detect strong emotional markers in the current sentence
+                if is_excited or any(word in current_sentence for word in conversation_context['emotion_keywords']['excited']):
+                    local_sentiment = 'excited'
+                elif is_empathetic and has_positive_tone:
+                    local_sentiment = 'happy'
+                elif is_cautious and has_negative_tone:
+                    local_sentiment = 'concerned'
+                elif is_technical and is_complex:
+                    local_sentiment = 'informative'
+                elif is_thoughtful and (is_complex or is_uncertain):
+                    local_sentiment = 'curious'
+                
+                # Apply specific contextual expressions based on sentence analysis using the local sentiment
+                if local_sentiment == 'excited' or is_excited:
+                    speak_cycle = (current_time * 4) % 4
+                    if speak_cycle < 1:
+                        face_text = f"⊙ {mouth} ⊙"  # Excited wide eyes
+                    elif speak_cycle < 2:
+                        face_text = f"◉ {mouth} ◉"  # Very excited eyes
+                    elif speak_cycle < 3:
+                        face_text = f"♦ {mouth} ♦"  # Sparkling excited eyes
                     else:
-                        mouth = "~"  # Wavy thinking line
-                elif sentiment == 'happy' or current_tone == 'enthusiastic':
-                    mouth = "v"  # Happy mouth
-                elif sentiment == 'concerned':
-                    mouth = "n"  # Concerned mouth
+                        face_text = f"^{mouth}^"  # Excited happy eyes
+                elif local_sentiment == 'curious' or is_question:
+                    # Gradient of curiosity based on consecutive questions or complexity
+                    if '?' in current_sentence and conversation_context['consecutive_questions'] > 1:
+                        face_text = f"⊙ {mouth} ⊙"  # Very curious with wide eyes
+                    elif is_technical and is_question:
+                        face_text = f"◑ {mouth} ◑"  # Technical question face
+                    elif is_comparative and is_question:
+                        face_text = f"◈ {mouth} ◈"  # Comparative analysis face
+                    else:
+                        face_text = f"○ {mouth} ○"  # Moderately curious eyes
+                elif local_sentiment == 'concerned' and is_cautious:
+                    # More pronounced concern for specific warning keywords
+                    if 'warning' in current_sentence or 'caution' in current_sentence or 'danger' in current_sentence:
+                        face_text = f"◑ n ◑"  # Heightened warning expression
+                    elif 'error' in current_sentence or 'problem' in current_sentence or 'issue' in current_sentence:
+                        face_text = f"⊛ n ⊛"  # Problem-focused concern
+                    else:
+                        face_text = f"⌒ n ⌒"  # Standard concern expression
+                elif local_sentiment == 'informative':
+                    # Technical vs simple informative faces with progressive expression changes
+                    speak_cycle = (current_time * 2) % 5  # Slower cycle for information delivery
+                    
+                    if is_technical:
+                        # Technical explanation faces
+                        if speak_cycle < 1:
+                            face_text = f"• {mouth} •"  # Focused technical face
+                        elif speak_cycle < 2:
+                            face_text = f"◘ {mouth} ◘"  # Alternative technical face
+                        elif speak_cycle < 3:
+                            face_text = f"◙ {mouth} ◙"  # Detailed technical face
+                        else:
+                            face_text = f"□ {mouth} □"  # Structured explanation face
+                    elif is_instructive:
+                        # Instructional faces
+                        if speak_cycle < 2:
+                            face_text = f"◉ {mouth} ◉"  # Important point face
+                        else:
+                            face_text = f"◎ {mouth} ◎"  # Step-by-step face
+                    elif is_comparative:
+                        # Comparative analysis faces
+                        if speak_cycle < 2:
+                            face_text = f"◈ {mouth} ◈"  # Comparison face
+                        else:
+                            face_text = f"◬ {mouth} ◬"  # Alternative comparison face
+                    else:
+                        # General informative faces with slight variations
+                        if speak_cycle < 2:
+                            face_text = f"· {mouth} ·"  # Light informative face
+                        elif speak_cycle < 3:
+                            face_text = f"∙ {mouth} ∙"  # Alternative light informative
+                        else:
+                            face_text = f"• {mouth} •"  # Standard informative face
+                elif local_sentiment == 'happy' and any(word in current_sentence for word in conversation_context['emotion_keywords']['happy']):
+                    # Happy expressions with variations
+                    speak_cycle = (current_time * 3) % 4
+                    
+                    if is_empathetic:
+                        # Warm, empathetic happy faces
+                        if speak_cycle < 2:
+                            face_text = f"◠ {mouth} ◠"  # Warm happy face
+                        else:
+                            face_text = f"≧ {mouth} ≦"  # Very warm happy face
+                    else:
+                        # Standard happy variations
+                        if speak_cycle < 1:
+                            face_text = f"^ {mouth} ^"  # Happy expression
+                        elif speak_cycle < 2:
+                            face_text = f"⌣ {mouth} ⌣"  # Alternative happy
+                        elif speak_cycle < 3:
+                            face_text = f"◡ {mouth} ◡"  # Soft happy
+                        else:
+                            face_text = f"＾{mouth}＾"  # Very happy
+                    # Additional standalone block for empathetic content not paired with happiness
+                elif is_empathetic:
+                        # Empathetic expressions
+                        speak_cycle = (current_time * 2.5) % 3
+                        if speak_cycle < 1:
+                            face_text = f"◠ {mouth} ◠"  # Empathetic face
+                        elif speak_cycle < 2:
+                            face_text = f"◑ {mouth} ◑"  # Understanding face
+                        else:
+                            face_text = f"◡ {mouth} ◡"  # Gentle face
                 else:
-                    mouth = "_"  # Default neutral mouth
+                    # Fallbacks based on face state and sentiment
+                    if current_face_state == 'thinking':
+                        # More varied thinking expressions
+                        think_cycle = (current_time * 0.5) % 3
+                        if think_cycle < 1:
+                            mouth = "."  # Thinking dot
+                        elif think_cycle < 2:
+                            mouth = "o"  # Small O
+                        else:
+                            mouth = "~"  # Wavy thinking line
+                    elif sentiment == 'happy' or current_tone == 'enthusiastic':
+                        mouth = "v"  # Happy mouth
+                    elif sentiment == 'concerned':
+                        mouth = "n"  # Concerned mouth
+                    else:
+                        mouth = "_"  # Default neutral mouth
         else:
             # Fallback if status_label not available
             if sentiment == 'happy' or current_tone == 'enthusiastic':
@@ -447,10 +618,9 @@ def draw_Interface_face():
             else:
                 mouth = "_"  # Neutral mouth
     
-    # Assembling the face text needs to happen AFTER mouth and eye determination
-    # Default face construction happens here, before specific state overrides
+    # Assemble the face based on components
     face_text = f"{left_eye} {mouth} {right_eye}"
-
+    
     # For more asymmetrical expressions during specific states and contexts
     if current_face_state == 'thinking' and not current_face_state == 'speaking':
         # More varied asymmetrical thinking expressions
@@ -467,10 +637,9 @@ def draw_Interface_face():
             face_text = f"⌐ {mouth} ¬"  # Analytical look
         elif conversation_context['consecutive_questions'] > 2:
             face_text = f"≖ {mouth} ≖"  # Intense focus for multiple questions
-        # else: keep the default f"{left_eye} {mouth} {right_eye}"
     
     # Enhanced idle behavior
-    elif current_face_state == 'idle' and time_since_interaction > 15: # Use elif to avoid overriding thinking
+    if current_face_state == 'idle' and time_since_interaction > 15:
         idle_look_cycle = (current_time * 0.3) % 20
         if idle_look_cycle < 2:
             face_text = f"- {mouth} {right_eye}"  # Looking right
@@ -485,11 +654,9 @@ def draw_Interface_face():
         elif idle_look_cycle < 10:
             face_text = f"◡ _ ◡"  # Simple contented face
         elif idle_look_cycle < 11:
-            face_text = f"⎯\\\\ _ /⎯"  # Sleepy face
-        # else: keep the default f"{left_eye} {mouth} {right_eye}"
+            face_text = f"⎯\\ _ /⎯"  # Sleepy face
     
-    # Special expression overrides based on full status context
-    # These override the default and state-based expressions above
+    # Enhanced context-specific expression overrides with better emotion mapping
     if status_label and hasattr(status_label, 'cget'):
         current_status = status_label.cget("text").lower()
         
@@ -500,11 +667,143 @@ def draw_Interface_face():
             face_text = f"? {mouth} ?"  # Confusion when not understanding
         elif "error" in current_status or "gagal" in current_status:
             face_text = f"× _ ×"  # Error face
-        # REMOVED the elif "speaking" block here, as the default face_text handles speaking now
-        # based on the mouth/eye logic earlier.
-        # The previous logic here for specific speaking emotions (excited, curious, concerned, informative)
-        # is now handled by the eye/mouth selection logic earlier in the function.
-        
+        elif "speaking" in current_status:
+            # Enhanced emotional variations based on sentence content
+            current_sentence = conversation_context.get('current_sentence', '').lower()
+            
+            # Check for question patterns in the current sentence
+            is_question = '?' in current_sentence or any(current_sentence.startswith(word) for word in ['what', 'who', 'where', 'when', 'why', 'how', 'can', 'could', 'would', 'should', 'is', 'are', 'do', 'did', 'has', 'have'])
+            
+            # Check for exclamation or emphasis
+            is_excited = '!' in current_sentence or any(word in current_sentence for word in conversation_context['emotion_keywords']['excited'])
+            
+            # Check for specific content patterns
+            is_cautious = any(word in current_sentence for word in conversation_context['emotion_keywords']['concerned'])
+            is_instructive = any(word in current_sentence for word in ['first', 'second', 'finally', 'step', 'important', 'remember', 'note'])
+            is_empathetic = any(word in current_sentence for word in conversation_context['emotion_keywords']['empathetic'])
+            is_technical = any(word in current_sentence for word in conversation_context['emotion_keywords']['technical']) 
+            is_comparative = any(word in current_sentence for word in ['better', 'worse', 'more', 'less', 'greater', 'smaller', 'however', 'although', 'instead', 'while', 'compared to'])
+            is_thoughtful = any(word in current_sentence for word in conversation_context['emotion_keywords']['thoughtful'])
+            
+            # Check for sentence complexity indicators
+            is_complex = len(current_sentence) > 100 or current_sentence.count(',') > 3
+            is_simple = len(current_sentence) < 50 and ',' not in current_sentence
+            
+            # Check for emotional tone markers
+            has_positive_tone = any(word in current_sentence for word in ['thank', 'appreciate', 'good', 'well', 'nice', 'great'])
+            has_negative_tone = any(word in current_sentence for word in ['not', 'cannot', 'won\'t', 'shouldn\'t', 'never', 'problem'])
+            
+            # Check for uncertainty markers
+            is_uncertain = any(word in current_sentence for word in ['perhaps', 'maybe', 'possibly', 'might', 'could be', 'potentially'])
+            
+            # Determine local sentiment based on sentence content for more accurate facial expressions
+            local_sentiment = sentiment  # Start with global sentiment
+            
+            # Override sentiment if we detect strong emotional markers in the current sentence
+            if is_excited or any(word in current_sentence for word in conversation_context['emotion_keywords']['excited']):
+                local_sentiment = 'excited'
+            elif is_empathetic and has_positive_tone:
+                local_sentiment = 'happy'
+            elif is_cautious and has_negative_tone:
+                local_sentiment = 'concerned'
+            elif is_technical and is_complex:
+                local_sentiment = 'informative'
+            elif is_thoughtful and (is_complex or is_uncertain):
+                local_sentiment = 'curious'
+            
+            # Apply specific contextual expressions based on sentence analysis using the local sentiment
+            if local_sentiment == 'excited' or is_excited:
+                speak_cycle = (current_time * 4) % 4
+                if speak_cycle < 1:
+                    face_text = f"⊙ {mouth} ⊙"  # Excited wide eyes
+                elif speak_cycle < 2:
+                    face_text = f"◉ {mouth} ◉"  # Very excited eyes
+                elif speak_cycle < 3:
+                    face_text = f"♦ {mouth} ♦"  # Sparkling excited eyes
+                else:
+                    face_text = f"^{mouth}^"  # Excited happy eyes
+            elif local_sentiment == 'curious' or is_question:
+                # Gradient of curiosity based on consecutive questions or complexity
+                if '?' in current_sentence and conversation_context['consecutive_questions'] > 1:
+                    face_text = f"⊙ {mouth} ⊙"  # Very curious with wide eyes
+                elif is_technical and is_question:
+                    face_text = f"◑ {mouth} ◑"  # Technical question face
+                elif is_comparative and is_question:
+                    face_text = f"◈ {mouth} ◈"  # Comparative analysis face
+                else:
+                    face_text = f"○ {mouth} ○"  # Moderately curious eyes
+            elif local_sentiment == 'concerned' and is_cautious:
+                # More pronounced concern for specific warning keywords
+                if 'warning' in current_sentence or 'caution' in current_sentence or 'danger' in current_sentence:
+                    face_text = f"◑ n ◑"  # Heightened warning expression
+                elif 'error' in current_sentence or 'problem' in current_sentence or 'issue' in current_sentence:
+                    face_text = f"⊛ n ⊛"  # Problem-focused concern
+                else:
+                    face_text = f"⌒ n ⌒"  # Standard concern expression
+            elif local_sentiment == 'informative':
+                # Technical vs simple informative faces with progressive expression changes
+                speak_cycle = (current_time * 2) % 5  # Slower cycle for information delivery
+                
+                if is_technical:
+                    # Technical explanation faces
+                    if speak_cycle < 1:
+                        face_text = f"• {mouth} •"  # Focused technical face
+                    elif speak_cycle < 2:
+                        face_text = f"◘ {mouth} ◘"  # Alternative technical face
+                    elif speak_cycle < 3:
+                        face_text = f"◙ {mouth} ◙"  # Detailed technical face
+                    else:
+                        face_text = f"□ {mouth} □"  # Structured explanation face
+                elif is_instructive:
+                    # Instructional faces
+                    if speak_cycle < 2:
+                        face_text = f"◉ {mouth} ◉"  # Important point face
+                    else:
+                        face_text = f"◎ {mouth} ◎"  # Step-by-step face
+                elif is_comparative:
+                    # Comparative analysis faces
+                    if speak_cycle < 2:
+                        face_text = f"◈ {mouth} ◈"  # Comparison face
+                    else:
+                        face_text = f"◬ {mouth} ◬"  # Alternative comparison face
+                else:
+                    # General informative faces with slight variations
+                    if speak_cycle < 2:
+                        face_text = f"· {mouth} ·"  # Light informative face
+                    elif speak_cycle < 3:
+                        face_text = f"∙ {mouth} ∙"  # Alternative light informative
+                    else:
+                        face_text = f"• {mouth} •"  # Standard informative face
+            elif local_sentiment == 'happy' and any(word in current_sentence for word in conversation_context['emotion_keywords']['happy']):
+                # Happy expressions with variations
+                speak_cycle = (current_time * 3) % 4
+                
+                if is_empathetic:
+                    # Warm, empathetic happy faces
+                    if speak_cycle < 2:
+                        face_text = f"◠ {mouth} ◠"  # Warm happy face
+                    else:
+                        face_text = f"≧ {mouth} ≦"  # Very warm happy face
+                else:
+                    # Standard happy variations
+                    if speak_cycle < 1:
+                        face_text = f"^ {mouth} ^"  # Happy expression
+                    elif speak_cycle < 2:
+                        face_text = f"⌣ {mouth} ⌣"  # Alternative happy
+                    elif speak_cycle < 3:
+                        face_text = f"◡ {mouth} ◡"  # Soft happy
+                    else:
+                        face_text = f"＾{mouth}＾"  # Very happy
+                # Additional standalone block for empathetic content not paired with happiness
+            elif is_empathetic:
+                    # Empathetic expressions
+                    speak_cycle = (current_time * 2.5) % 3
+                    if speak_cycle < 1:
+                        face_text = f"◠ {mouth} ◠"  # Empathetic face
+                    elif speak_cycle < 2:
+                        face_text = f"◑ {mouth} ◑"  # Understanding face
+                    else:
+                        face_text = f"◡ {mouth} ◡"  # Gentle face
     
     # Store previous face text for transitions
     animation_canvas.prev_face_text = face_text
@@ -736,7 +1035,7 @@ def setup_jarvis_ui(root_window, pause_func, resume_func):
 
     return status_label # Return the status label for the main script to update
 
-def update_status(status_text, tone='neutral', user_message=None, sentiment=None):
+def update_status(status_text, tone='neutral', user_message=None, sentiment=None, current_sentence=None):
     """Update the status label text and set the face animation state and tone"""
     global status_label, current_face_state, current_tone, conversation_context
     
@@ -767,6 +1066,10 @@ def update_status(status_text, tone='neutral', user_message=None, sentiment=None
                     conversation_context['user_engagement_level'] = 'low'
                 else:
                     conversation_context['user_engagement_level'] = 'normal'
+            
+            # Update current sentence being spoken if provided
+            if current_sentence:
+                conversation_context['current_sentence'] = current_sentence
             
             # Update sentiment if provided
             if sentiment:

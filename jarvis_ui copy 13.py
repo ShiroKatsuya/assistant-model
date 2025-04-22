@@ -447,10 +447,9 @@ def draw_Interface_face():
             else:
                 mouth = "_"  # Neutral mouth
     
-    # Assembling the face text needs to happen AFTER mouth and eye determination
-    # Default face construction happens here, before specific state overrides
+    # Assemble the face based on components
     face_text = f"{left_eye} {mouth} {right_eye}"
-
+    
     # For more asymmetrical expressions during specific states and contexts
     if current_face_state == 'thinking' and not current_face_state == 'speaking':
         # More varied asymmetrical thinking expressions
@@ -467,10 +466,9 @@ def draw_Interface_face():
             face_text = f"⌐ {mouth} ¬"  # Analytical look
         elif conversation_context['consecutive_questions'] > 2:
             face_text = f"≖ {mouth} ≖"  # Intense focus for multiple questions
-        # else: keep the default f"{left_eye} {mouth} {right_eye}"
     
     # Enhanced idle behavior
-    elif current_face_state == 'idle' and time_since_interaction > 15: # Use elif to avoid overriding thinking
+    if current_face_state == 'idle' and time_since_interaction > 15:
         idle_look_cycle = (current_time * 0.3) % 20
         if idle_look_cycle < 2:
             face_text = f"- {mouth} {right_eye}"  # Looking right
@@ -485,11 +483,9 @@ def draw_Interface_face():
         elif idle_look_cycle < 10:
             face_text = f"◡ _ ◡"  # Simple contented face
         elif idle_look_cycle < 11:
-            face_text = f"⎯\\\\ _ /⎯"  # Sleepy face
-        # else: keep the default f"{left_eye} {mouth} {right_eye}"
+            face_text = f"⎯\\ _ /⎯"  # Sleepy face
     
     # Special expression overrides based on full status context
-    # These override the default and state-based expressions above
     if status_label and hasattr(status_label, 'cget'):
         current_status = status_label.cget("text").lower()
         
@@ -500,11 +496,21 @@ def draw_Interface_face():
             face_text = f"? {mouth} ?"  # Confusion when not understanding
         elif "error" in current_status or "gagal" in current_status:
             face_text = f"× _ ×"  # Error face
-        # REMOVED the elif "speaking" block here, as the default face_text handles speaking now
-        # based on the mouth/eye logic earlier.
-        # The previous logic here for specific speaking emotions (excited, curious, concerned, informative)
-        # is now handled by the eye/mouth selection logic earlier in the function.
-        
+        elif "speaking" in current_status:
+            # Add emotional variations from main.py sentiment detection
+            if sentiment == 'excited':
+                speak_cycle = (current_time * 4) % 3
+                if speak_cycle < 1:
+                    face_text = f"⊙ {mouth} ⊙"  # Excited wide eyes
+                else:
+                    face_text = f"^{mouth}^"  # Excited happy eyes
+            elif sentiment == 'curious' and conversation_context['consecutive_questions'] > 1:
+                face_text = f"⊙ {mouth} ⊙"  # Very curious with wide eyes
+            elif sentiment == 'concerned' and "warning" in conversation_context.get('last_user_message', '').lower():
+                face_text = f"⌒ n ⌒"  # Heightened concern for warnings
+            # For informative responses with technical content
+            elif sentiment == 'informative' and len(conversation_context.get('last_user_message', '')) > 100:
+                face_text = f"• {mouth} •"  # Focused informative face for complex responses
     
     # Store previous face text for transitions
     animation_canvas.prev_face_text = face_text

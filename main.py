@@ -44,7 +44,8 @@ detection_lock = threading.Lock()  # Add lock for thread safety
 # Move conversation_history outside the else block, at class/global level
 conversation_history = []
 client = genai.Client(api_key="AIzaSyC3mPmd3ps_fGEXMwCjXOUPw7jMpXIeAoE")
-model_id = "gemini-2.0-flash-exp"
+model_id = "gemini-2.5-pro-exp-03-25"
+moddel_id2 = "gemini-2.0-flash-exp"
 
 generation_config = GenerateContentConfig(
         temperature=0,
@@ -97,7 +98,7 @@ def main():
                     if any(keyword in answer.lower() for keyword in ["ya", "yes", "iya", "sure", "ok", "oke", "yup", "yep"]):
                         voice("Please wait while I generate the explanation for the image.")
                         explanation_response = client.models.generate_content(
-                            model=model_id, 
+                            model=moddel_id2, 
                             config=generation_config,
                             contents=[
                                 sentiment, 
@@ -112,7 +113,6 @@ def main():
                 except Exception as e:
                     print(f"Error during image generation: {e}")
                 finally:
-                    sentiment.close()
                     resume_audio_processing()
 
 
@@ -152,18 +152,19 @@ def main():
                 try:
                     with detection_lock:
                         if detection_thread and detection_thread.is_alive():
-                            print("Internet sudah berjalan.")
+                            voice("Internet sudah berjalan.")
                         else:
                             print("Memulai akses internet...")
-                            voice("Memulai akses internet.")
+                            # voice("Memulai akses internet.")
+                            # voice("Anda sudah berada dalam mode realtime dan bisa mengakses internet kapanpun , untuk menghentikan akses internet, silahkan berikan perintah stop internet")
                             detection_stop_event.clear()
                             detection_thread = threading.Thread(target=internet_access, args=(detection_stop_event,))
                             detection_thread.daemon = True
                             detection_thread.start()
                             
-                            audio_thread = threading.Thread(target=audio_thread_intro_internet_access)
-                            audio_thread.start()
-                            audio_thread.join()
+                            # audio_thread = threading.Thread(target=audio_thread_intro_internet_access)
+                            # audio_thread.start()
+                            # audio_thread.join()
                             
                             while not detection_stop_event.is_set():
                                 response = internet_access()
@@ -302,7 +303,7 @@ def main():
 
                     response = client.models.generate_content(
                         model=model_id, 
-                        config=generation_config,
+                        # config=generation_config,
                         contents=[
                             translate, 
                             f"Please respond to this: {translate} in a friendly and informative manner."
@@ -311,24 +312,7 @@ def main():
 
                     cleaned_response = response.text.replace('*', '').replace('\n\n', '\n')
                     
-                    # Determine tone and sentiment based on response content
-                    response_tone = 'neutral'
-                    response_sentiment = 'informative'
-                    
-                    # Check for emotional indicators in the response
-                    if '!' in cleaned_response:
-                        response_tone = 'enthusiastic'
-                        response_sentiment = 'excited'
-                    elif any(word in cleaned_response.lower() for word in ['great', 'awesome', 'fantastic', 'wonderful', 'happy', 'glad']):
-                        response_tone = 'enthusiastic'
-                        response_sentiment = 'happy'
-                    elif any(word in cleaned_response.lower() for word in ['interesting', 'consider', 'perhaps', 'maybe']):
-                        response_sentiment = 'curious'
-                    elif any(word in cleaned_response.lower() for word in ['careful', 'caution', 'warning', 'sorry']):
-                        response_sentiment = 'concerned'
-                    
-                    # Process audio with visualization (already calls update_frame internally)
-                    jarvis_ui.update_status("Speaking...", tone=response_tone, user_message=translate, sentiment=response_sentiment)
+    
                     voice(cleaned_response)
                     resume_audio_processing()
                     

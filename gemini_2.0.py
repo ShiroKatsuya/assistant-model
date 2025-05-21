@@ -23,7 +23,7 @@ model_id = "gemini-2.5-pro-exp-03-25"
 #basic text generation
 
 response = client.models.generate_content(model='gemini-2.5-pro-exp-03-25', contents='How does AI work?')
-print(response.text)
+
 
 
 #web search
